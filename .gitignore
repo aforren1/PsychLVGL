@@ -1,0 +1,45 @@
+# Build trees and installed static libraries, one pair per engine, platform,
+# and variant (build-matlab, build-octave-glnxa64-sw, build-smoke-linux, ...).
+build-*/
+inst-*/
+
+# Compiled MEX files and native test binaries, split by architecture under
+# dist/<arch>/ (GPU build) and dist-sw/<arch>/ (software test variant).
+# Nothing under either is committed; the help shim lives in m/.
+dist/
+dist-sw/
+*.mex*
+*.pdb
+*.ilk
+*.exp
+*.obj
+*.o
+
+# Vendored dependencies are git submodules (see .gitmodules and
+# third_party/PINS.md). Tracy is optional and not vendored yet; when it is
+# added as a submodule, delete this line.
+third_party/tracy/
+
+# Generator environment. uv.lock is committed so the generator environment is
+# reproducible; the generated sources under src/ and m/ are committed too.
+gen/.venv/
+gen/out/
+__pycache__/
+*.pyc
+
+# LVGL Pro C exports dropped into plugin/ are user content. Only the
+# hand-written table and README in plugin/ are tracked.
+plugin/*_gen.c
+plugin/*_gen.h
+
+# MATLAB and Octave scratch files and logs from -batch runs
+*.asv
+*.m~
+octave-workspace
+*.log
+
+# CMake and IDE state
+CMakeUserPresets.json
+compile_commands.json
+.cache/
+.vs/

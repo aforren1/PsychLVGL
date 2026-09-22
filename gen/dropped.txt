@@ -1,0 +1,12 @@
+# Allowlisted LVGL functions the SPEC 7.3 rules cannot marshal.
+lv_obj_set_style_anim                        argument value of type lv_anim_t *
+lv_obj_set_style_arc_image_src               argument value of type void *
+lv_obj_set_style_bg_grad                     argument value of type lv_grad_dsc_t *
+lv_obj_set_style_bg_image_src                argument value of type void *
+lv_obj_set_style_bitmap_mask_src             argument value of type void *
+lv_obj_set_style_color_filter_dsc            argument value of type lv_color_filter_dsc_t *
+lv_obj_set_style_enabled                     argument style of type lv_style_t *
+lv_obj_set_style_grid_column_dsc_array       argument value of type int32_t *
+lv_obj_set_style_grid_row_dsc_array          argument value of type int32_t *
+lv_obj_set_style_image_colorkey              argument value of type lv_image_colorkey_t *
+lv_obj_set_style_transition                  argument value of type lv_style_transition_dsc_t *

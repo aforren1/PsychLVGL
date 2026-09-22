@@ -1,0 +1,14 @@
+[project]
+name = "psychlvgl-gen"
+version = "0.1.0"
+description = "Generates the psychlvgl MEX bindings from the LVGL headers"
+requires-python = ">=3.10"
+dependencies = [
+    "pycparser>=2.22",
+    "tomli>=2.0; python_version < '3.11'",
+    "pyMSVC>=0.5.3; platform_system == 'Windows'",
+    "vswhere>=1.4.0",
+]
+
+[tool.uv]
+package = false

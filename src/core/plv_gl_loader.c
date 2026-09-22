@@ -1,0 +1,94 @@
+/**
+ * @file plv_gl_loader.c
+ * Loads the OpenGL entry points into LVGL's vendored glad.
+ *
+ * LVGL calls gladLoadGL only from its GLFW and EGL drivers. The texture
+ * driver alone leaves the entry points null, so the embedding application has
+ * to load them. Psychtoolbox owns the context, so all this file does is hand
+ * glad a per-platform address lookup.
+ */
+#include "plv_gl_loader.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
+#include "glad/gl.h"
+
+#if defined(_WIN32)
+
+static HMODULE s_opengl32;
+
+static GLADapiproc plv_get_proc(const char * name)
+{
+    PROC p = wglGetProcAddress(name);
+    /* wglGetProcAddress only knows the extensions and the modern core; the
+     * GL 1.1 entry points live in opengl32.dll itself. */
+    if(p == NULL || p == (PROC)1 || p == (PROC)2 || p == (PROC)3 || p == (PROC) - 1) {
+        if(!s_opengl32) s_opengl32 = LoadLibraryA("opengl32.dll");
+        if(s_opengl32) p = GetProcAddress(s_opengl32, name);
+    }
+    return (GLADapiproc)p;
+}
+
+int plv_gl_has_context(void)
+{
+    return wglGetCurrentContext() != NULL;
+}
+
+void * plv_gl_context(void)
+{
+    return (void *)wglGetCurrentContext();
+}
+
+#elif defined(__APPLE__)
+
+#include <dlfcn.h>
+#include <OpenGL/OpenGL.h>
+
+static void * s_framework;
+
+static GLADapiproc plv_get_proc(const char * name)
+{
+    if(!s_framework)
+        s_framework = dlopen("/System/Library/Frameworks/OpenGL.framework/OpenGL", RTLD_LAZY);
+    if(!s_framework) return NULL;
+    return (GLADapiproc)dlsym(s_framework, name);
+}
+
+int plv_gl_has_context(void)
+{
+    return CGLGetCurrentContext() != NULL;
+}
+
+void * plv_gl_context(void)
+{
+    return (void *)CGLGetCurrentContext();
+}
+
+#else
+
+#include <dlfcn.h>
+#include <GL/glx.h>
+
+static GLADapiproc plv_get_proc(const char * name)
+{
+    return (GLADapiproc)glXGetProcAddressARB((const GLubyte *)name);
+}
+
+int plv_gl_has_context(void)
+{
+    return glXGetCurrentContext() != NULL;
+}
+
+void * plv_gl_context(void)
+{
+    return (void *)glXGetCurrentContext();
+}
+
+#endif
+
+int plv_gl_load(void)
+{
+    return gladLoadGL(plv_get_proc) != 0;
+}

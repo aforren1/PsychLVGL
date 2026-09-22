@@ -1,0 +1,286 @@
+name: CI
+
+# Strategy, the same shape as mex-msgpack: BUILD on the oldest supported
+# release, then TEST that exact binary on the newest one, and RELEASE only the
+# floor-built binaries.
+#   * MATLAB mex is forward compatible, so one floor build per OS covers every
+#     newer MATLAB.
+#   * Octave has two binary compatible eras, so one mex is built per era:
+#       - 6.4  -> loads on Octave 6.4 to 9.4
+#       - 10.1 -> loads on Octave 10 and later, through liboctmex
+#
+# No hosted runner has a GPU, so every job builds the software variant and runs
+# the no-GL suite, and builds the GPU variant compile only. That still compiles
+# the NanoVG draw unit, the OpenGL texture driver and glad. The one job that
+# executes GL code is smoke-gl-linux, which runs the native smoke test under
+# Xvfb and Mesa llvmpipe.
+#
+# third_party/lvgl is a submodule pinned at v9.6.0, and third_party/PINS.md
+# holds the commit. The "Fetch LVGL" step clones that commit when the submodule
+# is not there yet, so the workflow works before and after the conversion.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+env:
+  LVGL_COMMIT: 80ca777e37a2b176770726a02e07a6fb79ef0b39
+
+jobs:
+  # =============================================================== MATLAB =====
+  matlab-build:
+    name: build · ${{ matrix.os }} · MATLAB ${{ matrix.release }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, release: R2022b, arch: glnxa64, asset: psychlvgl-matlab-linux }
+          - { os: windows-2022, release: R2022b, arch: win64,   asset: psychlvgl-matlab-windows }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Fetch LVGL
+        shell: bash
+        run: |
+          if [ ! -f third_party/lvgl/lvgl.h ]; then
+            git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
+            git -C third_party/lvgl checkout "$LVGL_COMMIT"
+          fi
+      - uses: matlab-actions/setup-matlab@v3
+        with:
+          release: ${{ matrix.release }}
+      - name: Build the software variant and run the no-GL tests
+        uses: matlab-actions/run-command@v3
+        env:
+          MLM_LICENSE_TOKEN: ${{ secrets.MLM_LICENSE_TOKEN }}
+        with:
+          command: build('test-sw'); addpath('tests'); run_tests('sw')
+      - name: Build the GPU variant, compile only
+        uses: matlab-actions/run-command@v3
+        env:
+          MLM_LICENSE_TOKEN: ${{ secrets.MLM_LICENSE_TOKEN }}
+        with:
+          command: build('compile-only')
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.asset }}
+          path: |
+            dist/${{ matrix.arch }}
+            dist-sw/${{ matrix.arch }}
+            m
+            lv_conf.h
+            README.md
+            SPEC.md
+          if-no-files-found: error
+
+  matlab-test-forward:
+    name: test · ${{ matrix.os }} · MATLAB ${{ matrix.release }}
+    needs: matlab-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  release: latest, asset: psychlvgl-matlab-linux }
+          - { os: windows-latest, release: latest, asset: psychlvgl-matlab-windows }
+    steps:
+      - uses: actions/checkout@v7      # tests and help shims only, no rebuild
+      - name: Fetch the floor built package
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.asset }}
+          path: .
+      - name: Test the floor binary, no rebuild
+        uses: matlab-actions/run-command@v3
+        env:
+          MLM_LICENSE_TOKEN: ${{ secrets.MLM_LICENSE_TOKEN }}
+        with:
+          command: addpath('tests'); run_tests('sw')
+
+  # =============================================================== Octave =====
+  octave-build:
+    name: build · linux · Octave ${{ matrix.floor }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { floor: '6.4.0',  asset: psychlvgl-octave-linux-6.4 }
+          - { floor: '10.1.0', asset: psychlvgl-octave-linux-10 }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Fetch LVGL
+        shell: bash
+        run: |
+          if [ ! -f third_party/lvgl/lvgl.h ]; then
+            git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
+            git -C third_party/lvgl checkout "$LVGL_COMMIT"
+          fi
+      - name: Build and test
+        run: |
+          docker run --rm -i -v "$PWD:/work" -w /work "gnuoctave/octave:${{ matrix.floor }}" bash -s <<'EOF'
+          set -e
+          command -v cmake >/dev/null 2>&1 || { apt-get update && apt-get install -y --no-install-recommends cmake build-essential libgl1-mesa-dev; }
+          dpkg -s libgl1-mesa-dev >/dev/null 2>&1 || { apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-dev; }
+          octave --no-gui --eval "build('test-sw'); addpath('tests'); run_tests('sw')"
+          octave --no-gui --eval "build('compile-only')"
+          # the container runs as root; let the runner user read the result
+          chmod -R a+rX dist dist-sw
+          EOF
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.asset }}
+          path: |
+            dist/glnxa64
+            dist-sw/glnxa64
+            m
+            lv_conf.h
+            README.md
+            SPEC.md
+          if-no-files-found: error
+
+  octave-test-forward:
+    name: test · linux · Octave ${{ matrix.octave }} (from ${{ matrix.asset }})
+    needs: octave-build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { asset: psychlvgl-octave-linux-6.4, octave: '7.3.0'  }
+          - { asset: psychlvgl-octave-linux-6.4, octave: '9.4.0'  }
+          - { asset: psychlvgl-octave-linux-10,  octave: '10.3.0' }
+          - { asset: psychlvgl-octave-linux-10,  octave: '11.3.0' }
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch the built package
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.asset }}
+          path: .
+      - name: Test on Octave ${{ matrix.octave }}, no rebuild
+        run: |
+          docker run --rm -i -v "$PWD:/work" -w /work "gnuoctave/octave:${{ matrix.octave }}" bash -s <<'EOF'
+          set -e
+          octave --no-gui --eval "addpath('tests'); run_tests('sw')"
+          EOF
+
+  # MSYS2 is rolling, so the current Octave is what gets built, tested and
+  # shipped here.
+  octave-windows:
+    name: build · windows · Octave (MSYS2)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            mingw-w64-x86_64-octave
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+      - name: Fetch LVGL
+        run: |
+          if [ ! -f third_party/lvgl/lvgl.h ]; then
+            git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
+            git -C third_party/lvgl checkout "$LVGL_COMMIT"
+          fi
+      - name: Build and test
+        env:
+          MEX_CMAKE_GENERATOR: Ninja   # "MinGW Makefiles" rejects sh.exe on PATH
+        run: |
+          octave --no-gui --eval "build('test-sw'); addpath('tests'); run_tests('sw')"
+          octave --no-gui --eval "build('compile-only')"
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: psychlvgl-octave-windows
+          path: |
+            dist/win64
+            dist-sw/win64
+            m
+            lv_conf.h
+            README.md
+            SPEC.md
+          if-no-files-found: error
+
+  # ============================================================== OpenGL =====
+  # The only job that executes GL code. Mesa llvmpipe under Xvfb compiles the
+  # real NanoVG GL3 shaders and renders the real panel, which is what the GL
+  # tests would do on a developer machine with Psychtoolbox.
+  smoke-gl-linux:
+    name: smoke · linux · Mesa llvmpipe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Fetch LVGL
+        run: |
+          if [ ! -f third_party/lvgl/lvgl.h ]; then
+            git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
+            git -C third_party/lvgl checkout "$LVGL_COMMIT"
+          fi
+      - name: Install Mesa and Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake build-essential xvfb libgl1-mesa-dri mesa-utils \
+            libgl1-mesa-dev libx11-dev
+      - name: Build smoke_gl
+        run: |
+          cmake -S . -B build-smoke -DCMAKE_BUILD_TYPE=Release -DPSYCHLVGL_SMOKE_GL=ON -Wno-dev
+          cmake --build build-smoke --target smoke_gl -j
+      - name: Run smoke_gl under Xvfb
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: xvfb-run -a ./build-smoke/smoke_gl
+
+  # ============================================================== Release =====
+  release:
+    name: Publish release
+    needs: [matlab-build, matlab-test-forward, octave-build, octave-test-forward, octave-windows, smoke-gl-linux]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the release packages
+        uses: actions/download-artifact@v8
+        with:
+          path: packages
+          pattern: psychlvgl-*
+      - name: Zip each package
+        run: |
+          cd packages
+          for d in */; do
+            name="${d%/}"
+            (cd "$d" && zip -qr "../${name}.zip" .)
+          done
+          ls -la *.zip
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" packages/*.zip \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes

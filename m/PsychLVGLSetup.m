@@ -25,8 +25,7 @@ function out = PsychLVGLSetup(mode, variant)
             return;
         case 'nocheck'
             archdir = fullfile(root, plv_distname(variant), plv_arch());
-            plv_add_once(fullfile(root, 'm'));
-            plv_add_once(archdir);
+            plv_ensure_order(fullfile(root, 'm'), archdir);
             out = root;
             return;
         otherwise
@@ -48,27 +47,40 @@ function out = PsychLVGLSetup(mode, variant)
                'Run %s from %s.'], mexfile, cmd, root);
     end
 
-    plv_add_once(fullfile(root, 'm'));
-    plv_add_once(archdir);
+    plv_ensure_order(fullfile(root, 'm'), archdir);
     out = root;
 end
 
-function plv_add_once(d)
-% Idempotent, because a caller may run this on every frame. Rewriting the load
-% path while the MEX is loaded is what sends Octave 10 into unbounded recursion
-% in out_of_date_check; SPEC deviation D35 has the backtrace.
-    if plv_on_path(d)
-        return;
+function plv_ensure_order(mdir, archdir)
+% The contract is about order, not presence: dist/<arch> must come before m/,
+% or m/PsychLVGL.m shadows the MEX and every call raises psychlvgl:NotBuilt.
+% The path is changed only when that order does not hold, because a caller
+% may run this on every frame and a load path change while the MEX is loaded
+% sends Octave 10 into unbounded recursion in out_of_date_check (SPEC
+% deviation D35). addpath prepends, so adding archdir last puts it in front.
+    mi = plv_path_index(mdir);
+    ai = plv_path_index(archdir);
+    if mi == 0
+        addpath(mdir);
+        mi = plv_path_index(mdir);
     end
-    addpath(d);
+    if ai == 0 || ai > mi
+        addpath(archdir);
+    end
 end
 
-function tf = plv_on_path(d)
+function i = plv_path_index(d)
+% Position of d on the load path, or 0. Windows compares case insensitively.
     parts = strsplit(path(), pathsep());
-    tf = any(strcmp(parts, d));
-    if ~tf && ispc
-        % Windows path comparison is case insensitive.
-        tf = any(strcmpi(parts, d));
+    if ispc
+        hit = find(strcmpi(parts, d), 1);
+    else
+        hit = find(strcmp(parts, d), 1);
+    end
+    if isempty(hit)
+        i = 0;
+    else
+        i = hit;
     end
 end
 

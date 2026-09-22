@@ -115,6 +115,12 @@ uint64_t plv_now_ns(void)
     if(freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&now);
     return (uint64_t)((double)now.QuadPart * 1e9 / (double)freq.QuadPart);
+#elif defined(__APPLE__)
+    /* clock_gettime(CLOCK_MONOTONIC) is rounded to microseconds on macOS,
+     * which is coarser than an Update on an idle panel. The _np variant with
+     * CLOCK_MONOTONIC_RAW keeps mach_absolute_time resolution, about 42 ns on
+     * Apple silicon. */
+    return (uint64_t)clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);

@@ -256,15 +256,18 @@ function check_toolchain(here, builddir, is_octave)
     fid = fopen(idfile, 'r');
     id = strtrim(fread(fid, '*char')');
     fclose(fid);
-    if is_octave
-        want = 'GNU';
+    % Only MATLAB on Windows links with MSVC. MATLAB on Linux uses GCC and on
+    % macOS Clang, the same families Octave uses everywhere, so a GNU or Clang
+    % library is right for every engine except MATLAB on Windows.
+    if is_octave || ~ispc
+        want = {'GNU', 'Clang', 'AppleClang'};
     else
-        want = 'MSVC';
+        want = {'MSVC'};
     end
-    if ~strcmp(id, want)
+    if ~any(strcmp(id, want))
         error('build:toolchain', ...
               ['the static library was built with %s but this engine links with %s. ' ...
-               'Delete %s and rebuild, or set MEX_CMAKE_GENERATOR.'], id, want, builddir);
+               'Delete %s and rebuild, or set MEX_CMAKE_GENERATOR.'], id, strjoin(want, ' or '), builddir);
     end
 end
 

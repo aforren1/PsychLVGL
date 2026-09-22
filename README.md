@@ -1,6 +1,6 @@
-# psychlvgl
+# PsychLVGL
 
-`psychlvgl` is a MEX binding of LVGL 9.6 for MATLAB and GNU Octave. It draws
+`PsychLVGL` is a MEX binding of LVGL 9.6 for MATLAB and GNU Octave. It draws
 retained mode GUI panels inside a Psychtoolbox (PTB) onscreen window. LVGL
 renders on the GPU with its NanoVG draw unit into an OpenGL texture. PTB draws
 that texture like any other PTB texture, so no pixels cross the CPU.
@@ -24,7 +24,7 @@ model and the event model. This file tells you how to build, test and run.
 LVGL is a submodule, so clone with it:
 
 ```sh
-git clone --recurse-submodules <repo-url> PsychLVGL
+git clone --recurse-submodules https://github.com/aforren1/PsychLVGL.git
 cd PsychLVGL
 ```
 
@@ -44,7 +44,7 @@ git clone --branch v9.6.0 https://github.com/lvgl/lvgl.git third_party/lvgl
 
 ## Build
 
-From the `psychlvgl` folder:
+From the repository root:
 
 ```matlab
 build              % the GPU build, into dist/<arch>
@@ -182,7 +182,7 @@ Jobs:
 | `matlab-test-forward` | The newest MATLAB runs the binaries the floor release built, with no rebuild. |
 | `octave-build` | `gnuoctave/octave` Docker images, one per binary compatible era (6.4 and 10.1). Same two builds and the same test run. |
 | `octave-test-forward` | Newer Octave versions run each era's binary. |
-| `octave-windows` | MSYS2 with `MEX_CMAKE_GENERATOR=Ninja`. |
+| `octave-windows` | Official GNU Octave Windows zip (10.1.0, cached), using the toolchain and `make` it ships, as on a developer machine. |
 | `smoke-gl-linux` | Builds and runs `smoke_gl` under Xvfb and Mesa llvmpipe. This is the only automated coverage of the NanoVG path, because no runner has a GPU. |
 | `release` | On a `v*` tag, zips each artifact and publishes a GitHub Release. |
 

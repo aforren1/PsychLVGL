@@ -1,8 +1,8 @@
-# psychlvgl specification
+# PsychLVGL specification
 
 Status: specification, no code yet. Version 0.1, 2026-09-22.
 
-`psychlvgl` is a MEX binding of LVGL 9 for MATLAB and GNU Octave. It draws
+`PsychLVGL` is a MEX binding of LVGL 9 for MATLAB and GNU Octave. It draws
 retained-mode GUI panels inside a Psychtoolbox (PTB) onscreen window. LVGL
 renders on the GPU with its NanoVG draw unit into an OpenGL texture, inside
 PTB's userspace OpenGL context. PTB draws that texture like any other PTB
@@ -68,7 +68,7 @@ MATLAB / Octave script
   |  h = PsychLVGL('SliderCreate', parent)   PsychLVGL('Update', t, mouse, wheel, keys)   E = PsychLVGL('Poll')
   v
 +------------------------------------------------------------------+
-| psychlvgl MEX (C99)                                              |
+| PsychLVGL MEX (C99)                                              |
 |  dispatch:  sorted name table + opcode fast path                 |
 |  handles:   slot table, generation counter, LV_EVENT_DELETE hook |
 |  events:    fixed ring buffer filled by one LV_EVENT_ALL callback|

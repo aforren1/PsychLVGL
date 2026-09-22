@@ -33,8 +33,10 @@ displays, and touch-style interfaces.
 - Mouse, wheel, keyboard, and text input from PTB functions.
 - A later phase that loads user interfaces exported as C code by the LVGL Pro
   editor.
-- MATLAB R2023a and Octave 10.1 on Windows, verified. Linux expected to work.
-  macOS best effort.
+- MATLAB R2023a and Octave 10.1 on Windows, verified. Linux verified in CI.
+  macOS on Apple silicon (`maca64`) is a build target with CI jobs of its own:
+  MATLAB R2023b, Homebrew Octave, and the native smoke test on a CGL context.
+  Those three jobs are not blocking yet. Intel Macs (`maci64`) are not built.
 
 ### 1.3 Out of scope
 
@@ -135,6 +137,16 @@ These facts come from the LVGL v9.6.0 tree.
 - `lv_opengles_init()` creates the driver's shaders and buffers and calls
   `lv_draw_nanovg_init()`. It needs a current context. `LV_USE_OPENGLES`
   requires `LV_USE_MATRIX`.
+- `lv_opengles_init()` is not GL 2.1 clean, whatever `LV_NANOVG_BACKEND` says.
+  `lv_opengles_vertex_array_init` calls `glGenVertexArrays`, and
+  `lv_opengles_shader_manager_init` (`opengl_shader/lv_opengl_shader_manager.c`)
+  offers only `#version 300 es`, `#version 330` and `#version 100`. A macOS
+  compatibility context has GLSL 1.20 and no core vertex array object, so this
+  call is where the macOS GPU path is expected to stop. `LV_NANOVG_BACKEND_GL2`
+  only changes the NanoVG draw unit, which is a separate shader set.
+- `LV_NANOVG_BACKEND` is read only by `src/draw/nanovg/lv_draw_nanovg_private.h`,
+  which no public header includes. The value therefore has to match between
+  CMake and `lv_conf.h`, but a mismatch cannot change a struct layout.
 - `gladLoadGL(loader)` is called only by LVGL's GLFW and EGL drivers. With the
   texture driver alone, the embedding application must load the GL entry
   points. The MEX does this in `src/plv_gl_loader.c`.
@@ -669,7 +681,7 @@ Key settings:
 |---|---|---|
 | `LV_USE_OPENGLES` | 1 | texture driver |
 | `LV_USE_DRAW_NANOVG`, `LV_USE_NANOVG`, `LV_USE_MATRIX` | 1 | GPU draw unit and its requirements |
-| `LV_NANOVG_BACKEND` | `LV_NANOVG_BACKEND_GL3`, or GL2 on macOS | `lv_conf.h` wraps the line in `#ifndef LV_NANOVG_BACKEND`; CMake passes `-DLV_NANOVG_BACKEND=...` per platform |
+| `LV_NANOVG_BACKEND` | `LV_NANOVG_BACKEND_GL3`, or GL2 on macOS | `lv_conf.h` wraps the line in `#ifndef LV_NANOVG_BACKEND` and repeats the same `__APPLE__` choice as its default, so a unit compiled without the CMake define agrees; CMake passes `-DLV_NANOVG_BACKEND=...` per platform |
 | `LV_USE_DRAW_SW` | 0, 1 in the test variant | no software renderer at run time |
 | `LV_USE_GLFW`, `LV_USE_EGL`, `LV_USE_SDL` | 0 | PTB owns the context |
 | `LV_COLOR_DEPTH` | 32 | |
@@ -713,6 +725,14 @@ Same shape as `mex-msgpack`: build on the oldest supported release, test the
 binary on the newest. CI runs the no-GL tests on the software variant and
 compiles the GL variant without running it. GL tests run on developer machines.
 
+Platforms: Linux and Windows for both engines, plus macOS on Apple silicon.
+The macOS units are the `macos-latest` entry of `matlab-build` (MATLAB R2023b,
+the first native Apple silicon release), the matching `matlab-test-forward`
+entry, `octave-macos` (Homebrew Octave), and `smoke-gl-macos`. All of them set
+`continue-on-error: true`, because no one on the team has a Mac, and the flag
+comes off after the first run where every one of them is green. The release job
+lists them in `needs`, so a red macOS job costs only its own zip.
+
 ## 11. Testing
 
 ### 11.1 Without a GPU
@@ -752,7 +772,18 @@ other source file is identical. `run_tests.m` runs under both engines:
 - `test_gl_resize.m`: `Init` with a new size returns a new texture id, old
   handles invalid, re-wrapped PTB texture draws.
 
-### 11.3 Interactive
+### 11.3 Native smoke test
+
+`tests/native/smoke_gl.c` is the only GL coverage without Psychtoolbox. It
+makes the platform's own legacy context, WGL behind a hidden window on Windows,
+GLX behind a mapped window on X11, and on macOS a CGL context with no drawable
+and no `kCGLPFAOpenGLProfile` attribute, which is GL 2.1. The macOS branch asks
+for `kCGLPFAAccelerated` first and falls back to `kCGLPFARendererID` with
+`kCGLRendererGenericFloatID`, the Apple software renderer, because a CI runner
+is a virtual machine. It then runs the same sequence as the other platforms and
+reads the panel texture back through a framebuffer object.
+
+### 11.4 Interactive
 
 `PsychLVGLDemo.m`: a Gabor patch whose contrast follows a slider, a dropdown
 that selects the spatial frequency, a text area for a subject id, and a status
@@ -814,7 +845,8 @@ label. `perf/PsychLVGLPerf.m` prints the table described in section 9.4.
 | Slot table fixed at 4096? | Yes, adjustable with `MaxObjects` at `Init`. |
 | Tracy as a submodule now? | Yes, optional, not compiled by default. |
 | `Poll` matrix only, or also a MATLAB callback dispatcher? | Matrix plus `decode` and `filter`. No dispatcher. |
-| macOS support? | Best effort with the GL2 backend. Not CI-blocking. |
+| macOS support? | Apple silicon only, built and tested by three CI jobs of its own with the GL2 backend. Not CI-blocking until the first green run. The GPU path is expected to fail in `lv_opengles_init`; see section 4.2 and D37. |
+| Intel Macs? | No. `maci64` is neither built nor tested. |
 
 ## 13. Phasing
 
@@ -879,3 +911,4 @@ Section 13 stays the plan of record; only this section is added.
 | D34 | `Shutdown` frees the panel texture in the GPU build, although the display itself survives (D3). A script that wrapped the texture with `Screen('SetOpenGLTexture')` closes the Psychtoolbox texture next, and Psychtoolbox deletes the OpenGL name with it, so keeping the name would leave the next session rendering into a texture that no longer exists. Rule R5 still holds, but the new texture id is allowed to be the integer the driver just freed, so a script re-wraps the id it is given rather than comparing it with the old one. | Found by running the GL suite through the new helpers. |
 | D35 | No test changes the load path, and nothing in the project calls `rehash`. `tests/run_tests.m` puts `tests/stub` on the path once, before the first call into the MEX, and takes it off once after the last test, and only where a real Psychtoolbox `Screen` exists. `tests/test_helpers.m` has no `addpath`, `rmpath`, `rehash` or `onCleanup`. `m/PsychLVGLSetup.m` is idempotent, so a caller that runs it every frame does not rewrite the path. | A load path change while the MEX is loaded can make Octave 10 decide the MEX file is out of date. Its `out_of_date_check` then calls `bp_table::remove_all_breakpoints_from_function`, which looks the function up again, which runs `out_of_date_check` again. `gdb` in the `gnuoctave/octave:10.1.0` image shows more than 35000 frames of that cycle ending in SIGSEGV, right after `warning: library .../PsychLVGL.mex not reloaded due to existing references`. Octave 6.4 has no such cycle, and MATLAB is unaffected. The same crash hit all three sibling projects at the same point in their test suites, so the suspect mechanism was removed everywhere rather than worked around. |
 | D36 | `m/PsychLVGLDemo.m` calls `PsychDefaultSetup(2)` before it opens the window, and creates the Gabor with `CreateProceduralGabor(win, 300, 300, 0, [0.5 0.5 0.5 0], 1, 0.5)` and a unit `modulateColor`. It also measures the first frame and fails with `psychlvgl:GaborFlat` when the pixel standard deviation of the patch is below 0.02. `tests/gl/test_gl_demo_gabor.m`, with the helpers `gabor_std.m` and `gabor_michelson.m`, pins the same settings in the GL suite. | The demo drew a flat gray square. With the default `disableNorm = 0` the shader multiplies the contrast by `1/(sqrt(2*pi)*sc)`, about 1/100 at `sc = 40`, so a slider contrast of 0.6 reached an amplitude near 0.006; the window was also not in the normalized colour range the 0.5 offset assumes, and the Michelson relation only holds with a unit modulation colour. Measured after the fix: pixel standard deviation 0.0501 and central Michelson contrast 0.570 for a nominal 0.6, against 0.0021 before. |
+| D37 | macOS on Apple silicon is a build target. `lv_conf.h` defaults `LV_NANOVG_BACKEND` to `LV_NANOVG_BACKEND_GL2` under `__APPLE__`, CMake passes the same value, `build.m` picks the `Unix Makefiles` generator and links `-framework OpenGL`: under MATLAB as the `mex` argument `LDFLAGS=$LDFLAGS -framework OpenGL`, and under Octave through the `LDFLAGS` environment variable, set to `mkoctfile -p LDFLAGS` plus the framework and restored afterwards. `mkoctfile` answers "unrecognized argument" to `LDFLAGS=...` on the command line and its environment variable replaces its own value rather than adding to it; both were measured with `mkoctfile -v` on Octave 10.1, `tests/native/smoke_gl.c` grew a CGL branch, and `ci.yml` grew three macOS units. The GPU path itself is unverified and is expected to raise `psychlvgl:GLInit`: `lv_opengles_init` binds a core vertex array object and compiles its blit shader as `#version 300 es`, `330` or `100`, none of which a Psychtoolbox GL 2.1 compatibility context accepts. The software variant and the no-GL suite have no such dependency. | Version 0.1 called macOS best effort with no jobs. Nobody on the team has a Mac, so `macos-latest` is the only test bed, and every macOS unit is `continue-on-error: true` until one run is green. Everything here except the CI result was checked by inspection and by compiling the new CGL branch against stub CGL headers. |

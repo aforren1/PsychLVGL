@@ -3,8 +3,9 @@
  * Native smoke test for the OpenGL and NanoVG path.
  *
  * Psychtoolbox is the normal host for that path, so without it nothing else
- * exercises NanoVG. This program creates a hidden window with a legacy
- * compatibility WGL context, which is what Psychtoolbox gives the MEX, and
+ * exercises NanoVG. This program creates a legacy compatibility context of the
+ * kind Psychtoolbox gives the MEX (WGL behind a hidden window on Windows, GLX
+ * behind a mapped window on X11, a drawable-less CGL context on macOS) and
  * drives the core layer directly: load GL, init, create widgets, run Update
  * cycles with synthetic input, read the texture back through a framebuffer
  * object, and shut down.
@@ -92,8 +93,71 @@ static void drop_context(void)
 
 #elif defined(__APPLE__)
 
-static int  make_context(void) { return 0; }
-static void drop_context(void) { }
+#include <OpenGL/OpenGL.h>
+#include <OpenGL/CGLRenderers.h>   /* kCGLRendererGenericFloatID */
+
+static CGLContextObj s_cgl;
+
+/* No drawable and no window: everything this test looks at goes through a
+ * framebuffer object, and a CGL context with no drawable still renders into
+ * one. That is also the only headless OpenGL a macOS runner offers. */
+static CGLContextObj plv_make_cgl(int software)
+{
+    CGLPixelFormatAttribute attrs[12];
+    CGLPixelFormatObj pix = NULL;
+    CGLContextObj ctx = NULL;
+    GLint npix = 0;
+    int n = 0;
+
+    /* No kCGLPFAOpenGLProfile attribute at all. Asking for a profile on macOS
+     * gives a 3.2 core context, which has no fixed function pipeline and no
+     * GLSL 1.20; Psychtoolbox asks for neither, so it gets the legacy 2.1
+     * compatibility context this build targets with LV_NANOVG_BACKEND_GL2. */
+    attrs[n++] = kCGLPFAColorSize;
+    attrs[n++] = (CGLPixelFormatAttribute)24;
+    attrs[n++] = kCGLPFAAlphaSize;
+    attrs[n++] = (CGLPixelFormatAttribute)8;
+    attrs[n++] = kCGLPFADepthSize;
+    attrs[n++] = (CGLPixelFormatAttribute)24;
+    if(software) {
+        /* The Apple software renderer. A GitHub macOS runner is a virtual
+         * machine, so the accelerated renderer may not be reachable. */
+        attrs[n++] = kCGLPFARendererID;
+        attrs[n++] = (CGLPixelFormatAttribute)kCGLRendererGenericFloatID;
+    }
+    else {
+        attrs[n++] = kCGLPFAAccelerated;
+    }
+    attrs[n++] = (CGLPixelFormatAttribute)0;
+
+    if(CGLChoosePixelFormat(attrs, &pix, &npix) != kCGLNoError || pix == NULL) return NULL;
+    if(CGLCreateContext(pix, NULL, &ctx) != kCGLNoError) ctx = NULL;
+    CGLDestroyPixelFormat(pix);
+    return ctx;
+}
+
+static int make_context(void)
+{
+    s_cgl = plv_make_cgl(0);
+    if(!s_cgl) {
+        printf("no accelerated CGL pixel format; falling back to the software renderer\n");
+        s_cgl = plv_make_cgl(1);
+    }
+    if(!s_cgl) {
+        printf("CGLCreateContext failed for both renderers\n");
+        return 0;
+    }
+    return CGLSetCurrentContext(s_cgl) == kCGLNoError ? 1 : 0;
+}
+
+static void drop_context(void)
+{
+    CGLSetCurrentContext(NULL);
+    if(s_cgl) {
+        CGLDestroyContext(s_cgl);
+        s_cgl = NULL;
+    }
+}
 
 #else
 
@@ -249,6 +313,15 @@ int main(void)
     memset(&err, 0, sizeof(err));
     if(plv_init(&opts, &tex, &err)) {
         printf("plv_init failed: %s %s\n", err.id, err.msg);
+#if defined(__APPLE__)
+        /* lv_opengles_init compiles its blit shader as "#version 300 es",
+         * "#version 330" or "#version 100", and it binds a vertex array
+         * object. A macOS 2.1 compatibility context offers GLSL 1.20 and
+         * no core vertex array object, so this is the expected failure
+         * there until LVGL grows a GLSL 1.20 path. SPEC deviation D37. */
+        printf("on macOS this is usually lv_opengles_init: its shader manager "
+               "asks for GLSL 300 es, 330 or 100, and a 2.1 context has 1.20\n");
+#endif
         drop_context();
         return 1;
     }

@@ -54,6 +54,13 @@ if(PSYCHLVGL_TEST_SW)
 else()
     target_compile_definitions(lvgl PUBLIC LV_NANOVG_BACKEND=${LV_NANOVG_BACKEND})
 endif()
+if(APPLE)
+    # OpenGL and CGL are deprecated on macOS since 10.14. The project still
+    # uses them because that is the context Psychtoolbox creates, so the two
+    # macros turn off several thousand deprecation warnings that would
+    # otherwise hide real ones.
+    target_compile_definitions(lvgl PUBLIC GL_SILENCE_DEPRECATION=1 CGL_SILENCE_DEPRECATION=1)
+endif()
 if(PSYCHLVGL_TRACY)
     target_compile_definitions(lvgl PUBLIC PSYCHLVGL_TRACY=1)
 endif()
@@ -87,6 +94,9 @@ if(PSYCHLVGL_TEST_SW)
 endif()
 if(NOT PSYCHLVGL_STATS)
     target_compile_definitions(plv_core PUBLIC PSYCHLVGL_STATS=0)
+endif()
+if(APPLE)
+    target_compile_definitions(plv_core PUBLIC GL_SILENCE_DEPRECATION=1 CGL_SILENCE_DEPRECATION=1)
 endif()
 if(PSYCHLVGL_TRACY)
     # Tracy is C++. Compiling its client into this library keeps the MEX plain C.
@@ -128,7 +138,11 @@ if(PSYCHLVGL_SMOKE_GL AND NOT PSYCHLVGL_TEST_SW)
     target_link_libraries(smoke_gl PRIVATE plv_core)
     if(WIN32)
         target_link_libraries(smoke_gl PRIVATE opengl32 gdi32 user32)
-    elseif(NOT APPLE)
+    elseif(APPLE)
+        # CGL lives in OpenGL.framework, which plv_core already links, so the
+        # macOS branch of the smoke test needs no library of its own. The line
+        # is here so that a reader does not look for a missing one.
+    else()
         # The X11 branch of the smoke test creates its own GLX context.
         target_link_libraries(smoke_gl PRIVATE X11)
     endif()

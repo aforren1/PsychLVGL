@@ -658,9 +658,16 @@
  */
 /* CMake passes -DLV_NANOVG_BACKEND=... per platform. GL3 matches the
  * compatibility context Psychtoolbox creates on Windows and Linux; macOS
- * gets GL2 because its compatibility profile stops at GL 2.1. */
+ * gets GL2 because its compatibility profile stops at GL 2.1.
+ * The default below repeats that choice so that a translation unit built
+ * without the CMake define, the MEX itself for one, agrees with the static
+ * library. */
 #ifndef LV_NANOVG_BACKEND
+#ifdef __APPLE__
+#define LV_NANOVG_BACKEND LV_NANOVG_BACKEND_GL2
+#else
 #define LV_NANOVG_BACKEND LV_NANOVG_BACKEND_GL3
+#endif
 #endif
 
 /** Number of decoded images kept as GPU textures. */

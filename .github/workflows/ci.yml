@@ -18,6 +18,12 @@ name: CI
 # third_party/lvgl is a submodule pinned at v9.6.0, and third_party/PINS.md
 # holds the commit. The "Fetch LVGL" step clones that commit when the submodule
 # is not there yet, so the workflow works before and after the conversion.
+#
+# macOS on Apple silicon (maca64) is covered by four units: the macos-latest
+# entries of matlab-build and matlab-test-forward, octave-macos, and
+# smoke-gl-macos. Nobody on the team has a Mac, so continue-on-error keeps them
+# advisory. Make them blocking, by deleting that setting from each, after the
+# first run where all four are green.
 
 on:
   push:
@@ -34,12 +40,17 @@ jobs:
   matlab-build:
     name: build · ${{ matrix.os }} · MATLAB ${{ matrix.release }}
     runs-on: ${{ matrix.os }}
+    # Only the macOS entry sets experimental, so the other two stay blocking.
+    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - { os: ubuntu-22.04, release: R2022b, arch: glnxa64, asset: psychlvgl-matlab-linux }
           - { os: windows-2022, release: R2022b, arch: win64,   asset: psychlvgl-matlab-windows }
+          # R2023b is the first MATLAB with a native Apple silicon build, so it
+          # is the floor for maca64 rather than R2022b.
+          - { os: macos-latest, release: R2023b, arch: maca64,  asset: psychlvgl-matlab-macos, experimental: true }
     steps:
       - uses: actions/checkout@v7
         with:
@@ -58,6 +69,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgl1-mesa-dev libx11-dev
+      - name: Install CMake
+        if: runner.os == 'macOS'
+        shell: bash
+        # The runner image usually ships CMake. This keeps the job working if
+        # a future image drops it.
+        run: command -v cmake >/dev/null || brew install cmake
       - uses: matlab-actions/setup-matlab@v3
         with:
           release: ${{ matrix.release }}
@@ -90,12 +107,14 @@ jobs:
     name: test · ${{ matrix.os }} · MATLAB ${{ matrix.release }}
     needs: matlab-build
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - { os: ubuntu-latest,  release: latest, asset: psychlvgl-matlab-linux }
           - { os: windows-latest, release: latest, asset: psychlvgl-matlab-windows }
+          - { os: macos-latest,   release: latest, asset: psychlvgl-matlab-macos, experimental: true }
     steps:
       - uses: actions/checkout@v7      # tests and help shims only, no rebuild
       - uses: matlab-actions/setup-matlab@v3
@@ -246,6 +265,54 @@ jobs:
             SPEC.md
           if-no-files-found: error
 
+
+  # Octave on macOS comes from Homebrew, which is the way the project tells
+  # macOS users to install it. Apple silicon only: maca64.
+  octave-macos:
+    name: build · macOS · Octave (Homebrew)
+    runs-on: macos-latest
+    continue-on-error: true    # advisory until the first green macOS run
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Fetch LVGL
+        run: |
+          if [ ! -f third_party/lvgl/lvgl.h ]; then
+            git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
+            git -C third_party/lvgl checkout "$LVGL_COMMIT"
+          fi
+      - name: Install Octave and CMake
+        run: |
+          command -v cmake >/dev/null || brew install cmake
+          brew list octave >/dev/null 2>&1 || brew install octave
+          # `| head -1` alone would end the step: the runner's bash sets
+          # pipefail, and head closing the pipe makes octave-cli exit 141.
+          octave-cli --version 2>&1 | head -1 || true
+      - name: Build and test
+        run: |
+          # The upload paths below are maca64, so an x86_64 Octave under
+          # Rosetta would fail this job at the upload step with nothing to
+          # explain it. This line says which architecture it really is.
+          octave-cli --no-gui --eval "addpath('m'); printf('arch %s from %s\\n', PsychLVGLSetup('arch'), computer())"
+          octave-cli --no-gui --eval "build('test-sw'); addpath('tests'); run_tests('sw')"
+          octave-cli --no-gui --eval "build('compile-only')"
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: psychlvgl-octave-macos
+          path: |
+            dist/maca64
+            dist-sw/maca64
+            m
+            lv_conf.h
+            README.md
+            SPEC.md
+          if-no-files-found: error
+
   # ============================================================== OpenGL =====
   # The only job that executes GL code. Mesa llvmpipe under Xvfb compiles the
   # real NanoVG GL3 shaders and renders the real panel, which is what the GL
@@ -278,15 +345,54 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: '1'
         run: xvfb-run -a ./build-smoke/smoke_gl
 
+
+  # The macOS half of the same idea. Psychtoolbox gives the MEX a legacy GL 2.1
+  # context there, so the smoke test creates one with CGL and no
+  # kCGLPFAOpenGLProfile attribute, falling back to the Apple software renderer
+  # because a runner is a virtual machine. This build uses
+  # LV_NANOVG_BACKEND_GL2.
+  smoke-gl-macos:
+    name: smoke · macOS · CGL 2.1
+    runs-on: macos-latest
+    continue-on-error: true    # advisory until the first green macOS run
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Fetch LVGL
+        run: |
+          if [ ! -f third_party/lvgl/lvgl.h ]; then
+            git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
+            git -C third_party/lvgl checkout "$LVGL_COMMIT"
+          fi
+      - name: Install CMake
+        run: command -v cmake >/dev/null || brew install cmake
+      - name: Build smoke_gl
+        run: |
+          cmake -S . -B build-smoke -DCMAKE_BUILD_TYPE=Release -DPSYCHLVGL_SMOKE_GL=ON -Wno-dev
+          cmake --build build-smoke --target smoke_gl -j3
+      - name: Run smoke_gl
+        run: ./build-smoke/smoke_gl
+
   # ============================================================== Release =====
   release:
     name: Publish release
-    needs: [matlab-build, matlab-test-forward, octave-build, octave-test-forward, octave-windows, smoke-gl-linux]
+    # The macOS jobs are continue-on-error, so a red one still lets the release
+    # run; its zip is then simply missing from the release. Every other job must
+    # be green.
+    needs: [matlab-build, matlab-test-forward, octave-build, octave-test-forward,
+            octave-windows, smoke-gl-linux, octave-macos, smoke-gl-macos]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      # Seven artifacts when every job is green: matlab-linux, matlab-windows,
+      # matlab-macos, octave-linux-6.4, octave-linux-10, octave-windows and
+      # octave-macos. A missing one only means its zip is absent.
       - name: Download the release packages
         uses: actions/download-artifact@v8
         with:
@@ -306,5 +412,5 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" packages/*.zip \
             --repo "${{ github.repository }}" \
-            --title "${{ github.ref_name }}" \
+            --title "PsychLVGL ${{ github.ref_name }}" \
             --generate-notes

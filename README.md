@@ -12,12 +12,14 @@ model and the event model. This file tells you how to build, test and run.
 
 | Item | Version |
 |---|---|
-| MATLAB | R2023a verified, R2019b or later expected |
-| GNU Octave | 10.1 verified on Windows, 6.4 verified on Linux (WSL, Ubuntu 22.04) |
+| MATLAB | R2023a verified, R2019b or later expected. On Apple silicon, R2023b or later, because that is the first native build |
+| GNU Octave | 10.1 verified on Windows, 6.4 verified on Linux (WSL, Ubuntu 22.04). On macOS, the Homebrew build (`brew install octave`) |
+| Operating system | Windows 10 or later, Linux, macOS 12 or later on Apple silicon (`maca64`). Intel Macs are not built or tested |
 | CMake | 3.16 or later |
-| C compiler | MSVC 2022 for MATLAB on Windows, the MinGW gcc that Octave ships, gcc or clang elsewhere |
+| C compiler | MSVC 2022 for MATLAB on Windows, the MinGW gcc that Octave ships, Xcode command line tools on macOS, gcc or clang elsewhere |
 | Psychtoolbox | 3.0.19 or later, only for the GPU build and the demo |
 | Linux packages | `libgl1-mesa-dev` (or `libgl-dev`) for the GPU build, which links `libGL`; add `libx11-dev`, `xvfb`, and `libgl1-mesa-dri` for the native smoke test |
+| macOS frameworks | `OpenGL.framework`, which the Xcode command line tools install. Nothing else |
 | Python and uv | only to regenerate the bindings |
 
 ## Get the sources
@@ -78,7 +80,7 @@ PsychLVGLSetup('sw')    % the software test build
 
 | Variant | Output | Renders with | Needs |
 |---|---|---|---|
-| GPU, the default | `dist/<arch>` | LVGL OpenGL texture driver plus the NanoVG draw unit | a current OpenGL 3.2 context, normally from `Screen('BeginOpenGL')` |
+| GPU, the default | `dist/<arch>` | LVGL OpenGL texture driver plus the NanoVG draw unit | a current OpenGL 3.2 context, normally from `Screen('BeginOpenGL')`. On macOS the context is GL 2.1 and the build uses the NanoVG GL2 shaders; see "Known limits" |
 | software, for tests | `dist-sw/<arch>` | the LVGL software draw unit into a buffer the MEX owns | nothing |
 
 Both are called `PsychLVGL`, so only one can be on the path at a time.
@@ -235,8 +237,16 @@ Jobs:
 | `octave-build` | `gnuoctave/octave` Docker images, one per binary compatible era (6.4 and 10.1). Same two builds and the same test run. |
 | `octave-test-forward` | Newer Octave versions run each era's binary. |
 | `octave-windows` | Official GNU Octave Windows zip (10.1.0, cached), using the toolchain and `make` it ships, as on a developer machine. |
-| `smoke-gl-linux` | Builds and runs `smoke_gl` under Xvfb and Mesa llvmpipe. This is the only automated coverage of the NanoVG path, because no runner has a GPU. |
+| `smoke-gl-linux` | Builds and runs `smoke_gl` under Xvfb and Mesa llvmpipe. This is the only automated coverage of the NanoVG GL3 path, because no runner has a GPU. |
+| `octave-macos` | Homebrew Octave on `macos-latest` (Apple silicon): same two builds and the same test run, uploaded as `maca64`. |
+| `smoke-gl-macos` | Builds and runs `smoke_gl` against a drawable-less CGL context, which is the GL 2.1 compatibility profile Psychtoolbox uses on macOS. |
 | `release` | On a `v*` tag, zips each artifact and publishes a GitHub Release. |
+
+Four units build or test macOS: the `macos-latest` entries of `matlab-build`
+and `matlab-test-forward`, `octave-macos`, and `smoke-gl-macos`. All four carry
+`continue-on-error: true`, so they report but do not block, because no one on
+the team has a Mac to debug them on. Remove that setting from each after the
+first run where all four are green.
 
 Artifacts are named `psychlvgl-<engine>-<platform>[-<era>]` and each one holds
 only its own `dist/<arch>` and `dist-sw/<arch>`, plus `m/`, `lv_conf.h`,
@@ -267,3 +277,17 @@ express.
   LVGL itself.
 - Style properties that need a pointer argument, images, charts, `lv_style_t`
   handles and TTF fonts are phase 2. See `gen/dropped.txt`.
+- macOS is built and packaged for Apple silicon only, and the GPU path there is
+  unproven. Psychtoolbox gives a GL 2.1 compatibility context, so the build
+  selects `LV_NANOVG_BACKEND_GL2`, but LVGL's own `lv_opengles_init` compiles
+  its blit shader as `#version 300 es`, `#version 330` or `#version 100` and
+  binds a core vertex array object. A 2.1 context offers GLSL 1.20 and neither
+  of the rest, so `Init` is expected to raise `psychlvgl:GLInit` until LVGL
+  grows a GLSL 1.20 path. The `smoke-gl-macos` job is what will say for
+  certain. The software variant and the whole no-GL suite are unaffected.
+
+## Releasing
+
+A release is a `v*` tag; CI builds and publishes the packages. The
+step-by-step checklist, including where the version string lives and how to
+recover from a failed release job, is in [RELEASING.md](RELEASING.md).

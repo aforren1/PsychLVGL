@@ -164,7 +164,23 @@ function build_variant(here, sw)
         if ispc
             args{end+1} = '-lopengl32';
         elseif ismac
-            args{end+1} = 'LDFLAGS=$LDFLAGS -framework OpenGL';
+            % OpenGL.framework carries both GL and CGL. It is deprecated since
+            % macOS 10.14, and the two macros keep that from burying real
+            % warnings.
+            args{end+1} = '-DGL_SILENCE_DEPRECATION=1';
+            args{end+1} = '-DCGL_SILENCE_DEPRECATION=1';
+            if is_octave
+                % mkoctfile answers "unrecognized argument" to LDFLAGS=... and
+                % reads the environment variable instead, and that variable
+                % replaces its own value rather than adding to it. Both
+                % measured with `mkoctfile -v` on Octave 10.1. So read the
+                % default back, append, and put it back afterwards.
+                old_ldflags = getenv('LDFLAGS');
+                restore_ldflags = onCleanup(@() plv_restore_env('LDFLAGS', old_ldflags)); %#ok<NASGU>
+                setenv('LDFLAGS', [mkoctfile_var('LDFLAGS') ' -framework OpenGL']);
+            else
+                args{end+1} = 'LDFLAGS=$LDFLAGS -framework OpenGL';
+            end
         else
             args{end+1} = '-lGL';
             args{end+1} = '-ldl';
@@ -207,6 +223,34 @@ function cc = engine_compiler(is_octave)
     end
 end
 
+function plv_restore_env(name, old)
+% An empty value is not the same as no value: mkoctfile treats an LDFLAGS that
+% is set but empty as "use nothing", which would break the next build in this
+% session.
+    if isempty(old)
+        if exist('unsetenv', 'builtin') ~= 0 || exist('unsetenv', 'file') ~= 0
+            unsetenv(name);
+        else
+            setenv(name, '');
+        end
+    else
+        setenv(name, old);
+    end
+end
+
+function v = mkoctfile_var(name)
+% The value mkoctfile would use, so that a flag can be appended to it.
+    v = '';
+    try
+        [status, out] = system(['mkoctfile -p ' name]);
+        if status == 0
+            v = strtrim(out);
+        end
+    catch
+        v = '';
+    end
+end
+
 function r = octave_root()
 % The installation root, which holds mingw64/ (the compiler) and usr/ (make).
     r = '';
@@ -226,6 +270,14 @@ function [gen, extra] = cmake_generator(is_octave)
     extra = '';
     gen = getenv('MEX_CMAKE_GENERATOR');
     if ~isempty(gen); return; end
+    if ismac
+        % Named rather than left to CMake: a machine with Xcode installed can
+        % have CMAKE_GENERATOR set to Xcode, and the Xcode generator puts the
+        % archives under a per-configuration directory that find_libs does not
+        % look in.
+        gen = 'Unix Makefiles';
+        return;
+    end
     if ~ispc
         gen = '';
         return;

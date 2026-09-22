@@ -1,6 +1,6 @@
 # PsychLVGL specification
 
-Status: specification, no code yet. Version 0.1, 2026-09-22.
+Status: implemented through phase 1. Specification version 0.1, 2026-09-22; section 14 records every deviation.
 
 `PsychLVGL` is a MEX binding of LVGL 9 for MATLAB and GNU Octave. It draws
 retained-mode GUI panels inside a Psychtoolbox (PTB) onscreen window. LVGL

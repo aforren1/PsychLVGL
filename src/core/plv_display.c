@@ -116,6 +116,36 @@ static int plv_gl_version_at_least(int major, int minor)
     return gl_major == major && gl_minor >= minor;
 }
 
+/* LVGL's own OpenGL driver, not the NanoVG draw unit, sets the version floor.
+ * lv_opengles_init binds a vertex array object and compiles its blit shader as
+ * "#version 300 es", "#version 330" or "#version 100"; a 2.1 context has GLSL
+ * 1.20 and no core vertex array object. The failure is not an error return:
+ * glad loads an entry point only when the context reports the version that
+ * introduced it, so on 2.1 it leaves glGenVertexArrays null, LVGL calls it
+ * through its GL_CALL macro, which does not check, and the process dies.
+ * Measured on a macOS runner in CI, see SPEC deviation D37.
+ *
+ * The list is the GL 3.0 and GL 2.0 entry points lv_opengles_driver.c reaches
+ * before it can report anything. Checking them as well as the version string
+ * covers a driver that reports 3.0 but exports less than it claims. */
+static const char * plv_missing_gl_entry_point(void)
+{
+    if(glGenVertexArrays == NULL)     return "glGenVertexArrays";
+    if(glBindVertexArray == NULL)     return "glBindVertexArray";
+    if(glDeleteVertexArrays == NULL)  return "glDeleteVertexArrays";
+    if(glGenBuffers == NULL)          return "glGenBuffers";
+    if(glBufferData == NULL)          return "glBufferData";
+    if(glCreateShader == NULL)        return "glCreateShader";
+    if(glShaderSource == NULL)        return "glShaderSource";
+    if(glCompileShader == NULL)       return "glCompileShader";
+    if(glCreateProgram == NULL)       return "glCreateProgram";
+    if(glLinkProgram == NULL)         return "glLinkProgram";
+    if(glGetUniformLocation == NULL)  return "glGetUniformLocation";
+    if(glVertexAttribPointer == NULL) return "glVertexAttribPointer";
+    if(glGenFramebuffers == NULL)     return "glGenFramebuffers";
+    return NULL;
+}
+
 static unsigned int plv_create_texture(int32_t w, int32_t h)
 {
     GLuint tex = 0;
@@ -207,6 +237,7 @@ int plv_display_create(int32_t w, int32_t h, plv_err_t * err)
 {
     unsigned int tex;
     const char * s;
+    const char * missing;
     GLint saved = 0;
 
     if(!plv_gl_load())
@@ -229,12 +260,23 @@ int plv_display_create(int32_t w, int32_t h, plv_err_t * err)
     s = (const char *)glGetString(GL_RENDERER);
     snprintf(s_gl_renderer, sizeof(s_gl_renderer), "%s", s ? s : "unknown");
 
-#if LV_NANOVG_BACKEND == LV_NANOVG_BACKEND_GL2
-    if(!plv_gl_version_at_least(2, 1))
+    /* This floor holds whatever LV_NANOVG_BACKEND says, because it comes from
+     * LVGL's driver rather than from the NanoVG shaders. It has to run before
+     * anything calls into lv_opengles_*, or the answer is a crash. */
+    if(!plv_gl_version_at_least(3, 0))
         return plv_fail(err, "psychlvgl:GLInit",
-                        "the GL2 NanoVG backend needs OpenGL 2.1 or later, context reports %s",
+                        "LVGL's OpenGL driver needs OpenGL 3.0 or later; this context is %s. "
+                        "Psychtoolbox on macOS creates 2.1 contexts; see SPEC deviation D37.",
                         s_gl_version);
-#else
+    missing = plv_missing_gl_entry_point();
+    if(missing != NULL)
+        return plv_fail(err, "psychlvgl:GLInit",
+                        "LVGL's OpenGL driver needs OpenGL 3.0 or later; this context is %s, "
+                        "but %s did not resolve. Psychtoolbox on macOS creates 2.1 contexts; "
+                        "see SPEC deviation D37.",
+                        s_gl_version, missing);
+
+#if LV_NANOVG_BACKEND == LV_NANOVG_BACKEND_GL3
     if(!plv_gl_version_at_least(3, 2))
         return plv_fail(err, "psychlvgl:GLInit",
                         "the GL3 NanoVG backend needs OpenGL 3.2 or later, context reports %s",

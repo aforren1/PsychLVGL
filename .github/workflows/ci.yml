@@ -50,7 +50,7 @@ jobs:
           - { os: windows-2022, release: R2022b, arch: win64,   asset: psychlvgl-matlab-windows }
           # R2023b is the first MATLAB with a native Apple silicon build, so it
           # is the floor for maca64 rather than R2022b.
-          - { os: macos-latest, release: R2023b, arch: maca64,  asset: psychlvgl-matlab-macos, experimental: true }
+          - { os: macos-latest, release: R2023b, arch: maca64,  asset: psychlvgl-matlab-macos }
     steps:
       - uses: actions/checkout@v7
         with:
@@ -271,7 +271,6 @@ jobs:
   octave-macos:
     name: build · macOS · Octave (Homebrew)
     runs-on: macos-latest
-    continue-on-error: true    # advisory until the first green macOS run
     defaults:
       run:
         shell: bash

@@ -312,16 +312,11 @@ int main(void)
 
     memset(&err, 0, sizeof(err));
     if(plv_init(&opts, &tex, &err)) {
+        /* plv_display_create checks the context before it calls into
+         * lv_opengles_*, so a context LVGL cannot use arrives here as an
+         * error with the reason in it, not as a segmentation fault.
+         * SPEC deviation D37 has the macOS measurement. */
         printf("plv_init failed: %s %s\n", err.id, err.msg);
-#if defined(__APPLE__)
-        /* lv_opengles_init compiles its blit shader as "#version 300 es",
-         * "#version 330" or "#version 100", and it binds a vertex array
-         * object. A macOS 2.1 compatibility context offers GLSL 1.20 and
-         * no core vertex array object, so this is the expected failure
-         * there until LVGL grows a GLSL 1.20 path. SPEC deviation D37. */
-        printf("on macOS this is usually lv_opengles_init: its shader manager "
-               "asks for GLSL 300 es, 330 or 100, and a 2.1 context has 1.20\n");
-#endif
         drop_context();
         return 1;
     }

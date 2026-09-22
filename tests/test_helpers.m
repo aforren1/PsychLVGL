@@ -2,26 +2,20 @@ function test_helpers()
 % TEST_HELPERS  The four helper M-files, with a Psychtoolbox stub.
 %
 %   tests/stub holds a Screen that records its calls plus the handful of
-%   keyboard and mouse functions the helpers reach. The stub goes on the front
-%   of the path here and comes off again at the end, so the rest of the suite
-%   and any real Psychtoolbox stay untouched.
+%   keyboard and mouse functions the helpers reach. run_tests puts that
+%   directory on the path once, before the first call into the MEX, and takes
+%   it off again after the last test.
+%
+%   This file must not add or remove a path entry and must not call rehash.
+%   Changing the load path while the MEX is loaded sends Octave 10 into
+%   unbounded recursion in out_of_date_check, which ends as a stack overflow.
+%   SPEC deviation D35 has the backtrace.
 %
 %   The point is the wrapping logic: every BeginOpenGL has a matching
 %   EndOpenGL, an error inside the wrapped region still leaves 2D mode, the
 %   missing 3D graphics case is reported, and PsychLVGLGL does not nest.
 
-    here = fileparts(mfilename('fullpath'));
-    stub = fullfile(here, 'stub');
-
-    addpath(stub);
-    restore = onCleanup(@() plv_drop_stub(stub)); %#ok<NASGU>
-    try
-        rehash;
-    catch
-        % Octave resolves the new path without it.
-    end
-
-    plv_assert('the stub Screen shadows any real one', ...
+    plv_assert('the stub Screen is on the path', ...
                ~isempty(strfind(which('Screen'), 'stub'))); %#ok<STREMP>
 
     % --- the 3D graphics check ------------------------------------------
@@ -127,15 +121,6 @@ function test_helpers()
     Screen('stubKillWindow');
     PsychLVGLClose(ui);
     plv_assert('Close survives a closed window', ~plv_mex_is_up());
-end
-
-function plv_drop_stub(stub)
-    rmpath(stub);
-    try
-        rehash;
-    catch
-        % Octave resolves the path change without it.
-    end
 end
 
 function tf = plv_mex_is_up()

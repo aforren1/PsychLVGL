@@ -18,14 +18,23 @@ function PsychLVGLDemo(seconds)
         seconds = Inf;
     end
 
-    root = PsychLVGLSetup();
-    % The demo opens its window through the same helper as the GL tests, which
-    % is the one place that sets SkipSyncTests and VisualDebugLevel. Those two
+    % Both path entries go on before the first call into the MEX. The demo
+    % opens its window through the same helper as the GL tests, which is the
+    % one place that sets SkipSyncTests and VisualDebugLevel. Those two
     % preferences suit a demo, never a real session.
+    root = fileparts(fileparts(mfilename('fullpath')));
     addpath(fullfile(root, 'tests', 'gl'));
+    PsychLVGLSetup();
 
     panelW = 380;
     panelH = 420;
+
+    % Before the window opens: PsychDefaultSetup(2) gives every window that
+    % PsychImaging opens afterwards the normalized 0 to 1 colour range, which
+    % is what the 0.5 gray background and the Gabor colour offset assume. It
+    % is also what every Psychtoolbox demo does. The GL tests keep the default
+    % range, so this belongs here rather than in ptb_test_window.
+    PsychDefaultSetup(2);
 
     [win, winRect] = ptb_test_window([0 0 900 700], 0.5);
 
@@ -73,9 +82,15 @@ function PsychLVGLDemo(seconds)
     freqs = [2 4 8];
     freq = freqs(1);
     gaborRect = CenterRect([0 0 300 300], winRect);
-    gabortex = CreateProceduralGabor(win, 300, 300, 0, [0.5 0.5 0.5 0]);
+    % disableNorm = 1 and contrastPreMultiplicator = 0.5 make the contrast
+    % argument the Michelson contrast around the 0.5 gray, which is what the
+    % slider produces. With the default normalization the shader would scale
+    % contrast by 1/(sqrt(2*pi)*sc), about 1/100 at sc = 40, and the patch
+    % would look like flat gray. See CreateProceduralGabor.m lines 54 to 70.
+    gabortex = CreateProceduralGabor(win, 300, 300, 0, [0.5 0.5 0.5 0], 1, 0.5);
 
     running = true;
+    checked = false;
     phase = 0;
     tStop = GetSecs() + seconds;
     while running
@@ -93,8 +108,29 @@ function PsychLVGLDemo(seconds)
         end
 
         phase = phase + 4;
-        Screen('DrawTexture', win, gabortex, [], gaborRect, 0, [], [], [], [], ...
+        % modulateColor is [1 1 1 0], not empty: the Michelson relation above
+        % only holds while the modulation colour is unit white.
+        Screen('DrawTexture', win, gabortex, [], gaborRect, 0, [], [], [1 1 1 0], [], ...
                kPsychDontDoRotation, [phase, freq / 100, 40, contrast, 1, 0, 0, 0]);
+
+        if ~checked
+            % One automated look at the first frame, so a shader or colour
+            % range regression cannot turn the patch into flat gray unnoticed.
+            % A Gaussian envelope leaves most of the box flat, so the pixel
+            % standard deviation of a correct patch is small: measured 0.0501
+            % here at contrast 0.6, against 0.0021 for the broken version.
+            [sd, img] = gabor_std(win, gaborRect);
+            mc = gabor_michelson(img);
+            fprintf('gabor check: pixel std %.4f, central Michelson %.3f\n', sd, mc);
+            if sd < 0.02
+                error('psychlvgl:GaborFlat', ...
+                      ['the Gabor is flat: pixel standard deviation %.4f is below ' ...
+                       '0.02. Check PsychDefaultSetup(2), disableNorm and ' ...
+                       'modulateColor.'], sd);
+            end
+            checked = true;
+        end
+
         Screen('Flip', win);
 
         if GetSecs() >= tStop

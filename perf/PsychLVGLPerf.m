@@ -21,13 +21,15 @@ function T = PsychLVGLPerf(sizes, counts)
         counts = [10 100 500];
     end
 
-    root = PsychLVGLSetup();
     if exist('Screen', 'file') ~= 3
         error('psychlvgl:NoPTB', 'PsychLVGLPerf needs Psychtoolbox.');
     end
-    % Same window helper as the GL tests and the demo, so the two development
+    % Both path entries go on before the first call into the MEX. The window
+    % helper is shared with the GL tests and the demo, so the two development
     % preferences it sets live in one place.
+    root = fileparts(fileparts(mfilename('fullpath')));
     addpath(fullfile(root, 'tests', 'gl'));
+    PsychLVGLSetup();
     win = ptb_test_window([0 0 800 600]);
     closer = onCleanup(@() ptb_test_window_close()); %#ok<NASGU>
 

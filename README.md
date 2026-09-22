@@ -101,7 +101,10 @@ and argument errors, the tick, every generated subcommand, a CRC32 of the
 rendered software buffer, and the four helper M-files. The helpers are tested
 against a Psychtoolbox stub in `tests/stub`, which records the calls and
 answers them, so the suite checks that every `Screen('BeginOpenGL')` has its
-`Screen('EndOpenGL')` even when the wrapped call fails. The GL suite opens one 640x480 Psychtoolbox window
+`Screen('EndOpenGL')` even when the wrapped call fails. `run_tests` puts that
+directory on the path once and takes it off once; no test changes the load
+path, and nothing here calls `rehash`, because a path change while the MEX is
+loaded can drive Octave 10 into unbounded recursion (SPEC deviation D35). The GL suite opens one 640x480 Psychtoolbox window
 and checks the texture id, the rendered colors, the panel orientation, a click,
 and a resize.
 

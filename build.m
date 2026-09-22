@@ -123,7 +123,12 @@ function build_variant(here, sw)
     % LVGL is about 700 translation units, so a serial build dominates the
     % wall clock time of every build and of CI.
     run_cmd(sprintf('cmake --build "%s" --config Release --parallel', builddir));
-    run_cmd(sprintf('cmake --build "%s" --target install --config Release', builddir));
+    % `cmake --install` only copies. `cmake --build --target install` first
+    % re-runs the whole dependency check, which over a bind mount into a
+    % container costs minutes. Fall back for CMake older than 3.15.
+    if system(sprintf('cmake --install "%s" --config Release', builddir)) ~= 0
+        run_cmd(sprintf('cmake --build "%s" --target install --config Release', builddir));
+    end
 
     check_toolchain(here, builddir, is_octave);
 

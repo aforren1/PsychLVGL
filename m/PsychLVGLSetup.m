@@ -25,8 +25,8 @@ function out = PsychLVGLSetup(mode, variant)
             return;
         case 'nocheck'
             archdir = fullfile(root, plv_distname(variant), plv_arch());
-            addpath(fullfile(root, 'm'));
-            addpath(archdir);
+            plv_add_once(fullfile(root, 'm'));
+            plv_add_once(archdir);
             out = root;
             return;
         otherwise
@@ -48,9 +48,28 @@ function out = PsychLVGLSetup(mode, variant)
                'Run %s from %s.'], mexfile, cmd, root);
     end
 
-    addpath(fullfile(root, 'm'));
-    addpath(archdir);
+    plv_add_once(fullfile(root, 'm'));
+    plv_add_once(archdir);
     out = root;
+end
+
+function plv_add_once(d)
+% Idempotent, because a caller may run this on every frame. Rewriting the load
+% path while the MEX is loaded is what sends Octave 10 into unbounded recursion
+% in out_of_date_check; SPEC deviation D35 has the backtrace.
+    if plv_on_path(d)
+        return;
+    end
+    addpath(d);
+end
+
+function tf = plv_on_path(d)
+    parts = strsplit(path(), pathsep());
+    tf = any(strcmp(parts, d));
+    if ~tf && ispc
+        % Windows path comparison is case insensitive.
+        tf = any(strcmpi(parts, d));
+    end
 end
 
 function d = plv_distname(variant)

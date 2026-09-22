@@ -98,6 +98,9 @@ jobs:
           - { os: windows-latest, release: latest, asset: psychlvgl-matlab-windows }
     steps:
       - uses: actions/checkout@v7      # tests and help shims only, no rebuild
+      - uses: matlab-actions/setup-matlab@v3
+        with:
+          release: ${{ matrix.release }}
       - name: Fetch the floor built package
         uses: actions/download-artifact@v8
         with:

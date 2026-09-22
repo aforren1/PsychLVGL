@@ -24,6 +24,17 @@ function run_tests(variant)
 
     addpath(here);
     addpath(fullfile(here, 'gl'));
+
+    % The Psychtoolbox stub goes on the path here, once, before the first call
+    % into the MEX, and no test touches the path after that. Changing the load
+    % path while the MEX is loaded sends Octave 10 into unbounded recursion in
+    % out_of_date_check; SPEC deviation D35 has the backtrace.
+    hadScreen = (exist('Screen', 'file') == 3);
+    stub = fullfile(here, 'stub');
+    if strcmp(variant, 'sw')
+        addpath(stub);
+    end
+
     PsychLVGLSetup(variant);
 
     v = PsychLVGL('Version');
@@ -34,6 +45,11 @@ function run_tests(variant)
         run_group({'test_dispatch', 'test_handles', 'test_events', 'test_keypad', ...
                    'test_tick', 'test_gen_marshal', 'test_checksum', ...
                    'test_helpers'});
+        % Only hand the real Screen back where there is one. On a machine with
+        % no Psychtoolbox the stub can stay: nothing else looks for Screen.
+        if hadScreen
+            rmpath(stub);
+        end
         fprintf(['-- tests/gl skipped: they need the GPU variant. ' ...
                  'Run `build` then `run_tests gl` in a fresh session.\n']);
     elseif screen_works()
@@ -42,7 +58,7 @@ function run_tests(variant)
         % second GL context in the same session cannot be relied on.
         try
             run_group({'test_gl_init', 'test_gl_render', 'test_gl_click', ...
-                       'test_gl_resize'});
+                       'test_gl_resize', 'test_gl_demo_gabor'});
         catch err
             ptb_test_window_close();
             rethrow(err);

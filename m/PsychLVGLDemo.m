@@ -1,13 +1,22 @@
-function PsychLVGLDemo()
+function PsychLVGLDemo(seconds)
 % PSYCHLVGLDEMO  A Gabor patch driven by an LVGL control panel.
 %
-%   PsychLVGLDemo
+%   PsychLVGLDemo             Runs until ESCAPE.
+%   PsychLVGLDemo(seconds)    Runs for that long, which is what a test does.
 %
 %   The panel holds a contrast slider, a spatial frequency dropdown, a subject
-%   id text area and a status label. Click the slider or turn the wheel; press
+%   id text area and a status label. Drag the slider or turn the wheel; press
 %   ESCAPE to finish.
 %
+%   The whole frame loop is four calls: PsychLVGLOpen, PsychLVGLFrame,
+%   Screen('Flip') and PsychLVGLClose. No Screen('BeginOpenGL') pair appears
+%   in this file.
+%
 %   Psychtoolbox with a working OpenGL context is required.
+
+    if nargin < 1 || isempty(seconds)
+        seconds = Inf;
+    end
 
     root = PsychLVGLSetup();
     % The demo opens its window through the same helper as the GL tests, which
@@ -19,11 +28,12 @@ function PsychLVGLDemo()
     panelH = 420;
 
     [win, winRect] = ptb_test_window([0 0 900 700], 0.5);
-    cleanup = onCleanup(@() ptb_test_window_close()); %#ok<NASGU>
 
     dst = [20, 20, 20 + panelW, 20 + panelH];
-    panel = PsychLVGLFrame('Open', win, dst, panelW, panelH);
-    kq = PsychLVGLInput('Start', win);
+    ui = PsychLVGLOpen(win, panelW, panelH, dst);
+    % One cleanup, so the panel always closes before the window. Two separate
+    % onCleanup objects run in an order the engine chooses.
+    closer = onCleanup(@() plv_demo_close(ui)); %#ok<NASGU>
 
     % --- build the panel once ---
     scr = PsychLVGL('ScreenActive');
@@ -67,8 +77,9 @@ function PsychLVGLDemo()
 
     running = true;
     phase = 0;
+    tStop = GetSecs() + seconds;
     while running
-        [E, panel] = PsychLVGLFrame('Update', panel, kq);
+        [ui, E] = PsychLVGLFrame(ui);
 
         S = PsychLVGLEvents('decode', E);
         for k = 1:numel(S)
@@ -86,12 +97,22 @@ function PsychLVGLDemo()
                kPsychDontDoRotation, [phase, freq / 100, 40, contrast, 1, 0, 0, 0]);
         Screen('Flip', win);
 
-        [down, ~, keyCode] = KbCheck(-1);
-        if down && keyCode(KbName('ESCAPE'))
+        if GetSecs() >= tStop
             running = false;
         end
+        try
+            [down, ~, keyCode] = KbCheck(-1);
+            if down && keyCode(KbName('ESCAPE'))
+                running = false;
+            end
+        catch
+            % No keyboard on this machine. The seconds argument or a closed
+            % window is then the only way out.
+        end
     end
+end
 
-    PsychLVGLInput('Stop', kq);
-    PsychLVGLFrame('Close', panel);
+function plv_demo_close(ui)
+    PsychLVGLClose(ui);
+    ptb_test_window_close();
 end

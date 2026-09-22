@@ -1,7 +1,6 @@
 function test_gl_init()
-% TEST_GL_INIT  Init returns a texture id and reports the NanoVG backend.
-%   Needs Psychtoolbox and a GPU. run_tests skips this file when Screen is
-%   not usable.
+% TEST_GL_INIT  PsychLVGLOpen returns a wrapped panel, and Version reports the
+%   NanoVG backend. Needs Psychtoolbox and a GPU.
 
     if ~plv_gl_available(); plv_gl_skip('test_gl_init'); return; end
 
@@ -14,11 +13,13 @@ function test_gl_init()
 
     win = ptb_test_window();
 
-    Screen('BeginOpenGL', win);
-    glTex = PsychLVGL('Init', 200, 200);
-    Screen('EndOpenGL', win);
+    ui = PsychLVGLOpen(win, 200, 200);
 
-    plv_assert('Init returns a nonzero texture id', glTex > 0);
+    plv_assert('Open returns a nonzero GL texture id', ui.glTex > 0);
+    plv_assert('Open returns a Psychtoolbox texture', ui.tex > 0);
+    plv_eq('Open keeps the panel size', [ui.w ui.h], [200 200]);
+    plv_eq('the default rectangle is the top left corner', ui.dst, [0 0 200 200]);
+    plv_eq('Open left Psychtoolbox in 2D mode', plv_gl_drawmode(), 0);
 
     v = PsychLVGL('Version');
     plv_eq('Version reports the GL build', v.build, 'gl');
@@ -27,7 +28,14 @@ function test_gl_init()
     plv_assert('Version reports the GL version', ~isempty(v.glVersion));
     plv_assert('Version reports the renderer', ~isempty(v.glRenderer));
 
-    Screen('BeginOpenGL', win);
-    PsychLVGL('Shutdown');
-    Screen('EndOpenGL', win);
+    % A GL subcommand through the wrapper, and the state after it.
+    dirty = PsychLVGLGL(ui, 'Update', GetSecs(), [0 0 0], 0, zeros(0, 2));
+    plv_assert('the first Update renders', dirty == 1);
+    plv_eq('the wrapper left 2D mode', plv_gl_drawmode(), 0);
+
+    PsychLVGLClose(ui);
+    plv_throws('Close shut the panel down', 'psychlvgl:NotInitialized', ...
+               @() PsychLVGL('Poll'));
+    PsychLVGLClose(ui);
+    plv_assert('Close is safe twice', true);
 end

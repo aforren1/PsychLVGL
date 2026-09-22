@@ -321,10 +321,34 @@ int plv_display_create(int32_t w, int32_t h, plv_err_t * err)
  * The caller clears the widget tree instead. */
 void plv_display_destroy(void)
 {
-    if(!(plv_gl_has_context() && plv_gl_context() == s_ctx) && g_plv.print_fn) {
+    if(plv_gl_has_context() && plv_gl_context() == s_ctx) {
+        /* The panel texture goes at Shutdown, even though the display stays.
+         * A script that wrapped it with Screen('SetOpenGLTexture') closes the
+         * Psychtoolbox texture next, and Psychtoolbox deletes the OpenGL name
+         * with it, so keeping the name here would leave the next session
+         * rendering into a texture that no longer exists. The next Init makes
+         * a fresh one. */
+        GLint saved = 0;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &saved);
+        if(s_fbo) {
+            glBindFramebuffer(GL_FRAMEBUFFER, s_fbo);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+            glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)saved);
+        }
+        if(s_tex) {
+            GLuint t = (GLuint)s_tex;
+            glDeleteTextures(1, &t);
+        }
+        plv_gl_drain();
+    }
+    else if(g_plv.print_fn) {
         g_plv.print_fn("psychlvgl: shutdown with no current GL context; "
                        "the texture and shaders are left to the context owner.\n");
     }
+
+    s_tex = 0;
+    s_disp_w = 0;
+    s_disp_h = 0;
     g_plv.disp = NULL;
     g_plv.texture_id = 0;
 }

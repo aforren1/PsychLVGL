@@ -6,10 +6,11 @@ function T = PsychLVGLPerf(sizes, counts)
 %       sizes   Nx2 panel sizes in pixels, default [200 200; 640 480; 1920 1080]
 %       counts  1xM widget counts, default [10 100 500]
 %
-%   The table holds, for each cell, the CPU time of PsychLVGL('Update') when
-%   nothing changed and when one slider moved, plus the cost of the two
-%   Psychtoolbox context switches on their own. Measure before optimizing:
-%   SPEC section 9.4 lists these as the first four numbers to look at.
+%   For each cell the table holds the cost of one wrapped Update when nothing
+%   changed and when one slider moved, plus the cost of the two Psychtoolbox
+%   context switches on their own. The first two numbers include those two
+%   switches, because that is what a script pays per frame. Measure before
+%   optimizing: SPEC section 9.4 lists these as the first numbers to look at.
 %
 %   Needs Psychtoolbox and the GPU build.
 
@@ -28,7 +29,7 @@ function T = PsychLVGLPerf(sizes, counts)
     % preferences it sets live in one place.
     addpath(fullfile(root, 'tests', 'gl'));
     win = ptb_test_window([0 0 800 600]);
-    cleanup = onCleanup(@() ptb_test_window_close()); %#ok<NASGU>
+    closer = onCleanup(@() ptb_test_window_close()); %#ok<NASGU>
 
     rows = zeros(0, 6);
     fprintf('%6s %6s %8s %12s %12s %12s\n', ...
@@ -51,10 +52,8 @@ end
 function [idleUs, moveUs, ctxUs] = one_cell(win, w, h, n)
     reps = 60;
 
-    Screen('BeginOpenGL', win);
-    PsychLVGL('Init', w, h);
-    Screen('EndOpenGL', win);
-    guard = onCleanup(@() shutdown_quiet(win)); %#ok<NASGU>
+    ui = PsychLVGLOpen(win, w, h, [0 0 w h]);
+    guard = onCleanup(@() PsychLVGLClose(ui)); %#ok<NASGU>
 
     scr = PsychLVGL('ScreenActive');
     slider = PsychLVGL('SliderCreate', scr);
@@ -71,18 +70,14 @@ function [idleUs, moveUs, ctxUs] = one_cell(win, w, h, n)
 
     t = GetSecs();
     for k = 1:3
-        Screen('BeginOpenGL', win);
-        PsychLVGL('Update', t + k * 0.016, [0 0 0], 0, zeros(0, 2));
-        Screen('EndOpenGL', win);
+        PsychLVGLGL(ui, 'Update', t + k * 0.016, [0 0 0], 0, zeros(0, 2));
     end
 
     % idle frames
     PsychLVGL('Stats', 'reset');
     t0 = GetSecs();
     for k = 1:reps
-        Screen('BeginOpenGL', win);
-        PsychLVGL('Update', t + (10 + k) * 0.016, [0 0 0], 0, zeros(0, 2));
-        Screen('EndOpenGL', win);
+        PsychLVGLGL(ui, 'Update', t + (10 + k) * 0.016, [0 0 0], 0, zeros(0, 2));
     end
     idleUs = 1e6 * (GetSecs() - t0) / reps;
 
@@ -90,9 +85,7 @@ function [idleUs, moveUs, ctxUs] = one_cell(win, w, h, n)
     t0 = GetSecs();
     for k = 1:reps
         PsychLVGL('SliderSetValue', slider, mod(k * 7, 1000), 0);
-        Screen('BeginOpenGL', win);
-        PsychLVGL('Update', t + (100 + k) * 0.016, [0 0 0], 0, zeros(0, 2));
-        Screen('EndOpenGL', win);
+        PsychLVGLGL(ui, 'Update', t + (100 + k) * 0.016, [0 0 0], 0, zeros(0, 2));
     end
     moveUs = 1e6 * (GetSecs() - t0) / reps;
 
@@ -105,14 +98,4 @@ function [idleUs, moveUs, ctxUs] = one_cell(win, w, h, n)
     ctxUs = 1e6 * (GetSecs() - t0) / reps;
 
     PsychLVGL('Poll');
-end
-
-function shutdown_quiet(win)
-    try
-        Screen('BeginOpenGL', win);
-        PsychLVGL('Shutdown');
-        Screen('EndOpenGL', win);
-    catch
-        % already down
-    end
 end

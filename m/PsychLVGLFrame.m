@@ -1,80 +1,79 @@
-function varargout = PsychLVGLFrame(cmd, varargin)
-% PSYCHLVGLFRAME  One call per frame instead of the six in SPEC section 4.3.
+function [ui, E] = PsychLVGLFrame(ui)
+% PSYCHLVGLFRAME  Runs one LVGL frame and draws the panel.
 %
-%   panel = PsychLVGLFrame('Open', win, dst, panelW, panelH [, opts])
-%       Wraps InitializeMatlabOpenGL, PsychLVGL('Init') inside
-%       Screen('BeginOpenGL'), and Screen('SetOpenGLTexture'). Returns the
-%       struct the caller keeps.
+%   [ui, E] = PsychLVGLFrame(ui)
 %
-%   [E, panel] = PsychLVGLFrame('Update', panel, kq)
-%       Input, BeginOpenGL, PsychLVGL('Update'), EndOpenGL, DrawTexture, and
-%       the event matrix. The caller still owns Screen('Flip').
+%   ui   The struct PsychLVGLOpen returned.
+%   E    The event matrix, Nx5, oldest first. PsychLVGLEvents('decode', E)
+%        turns it into a struct array.
 %
-%   PsychLVGLFrame('Close', panel)
+%   One call does everything SPEC section 4.3 shows per frame: it polls the
+%   mouse, the wheel and the keyboard in panel coordinates, wraps
+%   PsychLVGL('Update') in Screen('BeginOpenGL') and Screen('EndOpenGL'),
+%   draws the panel texture into the destination rectangle, and drains the
+%   event queue.
 %
-%   The panel struct holds win, tex, dst, w, h and the time of the previous
-%   frame, which feeds PsychLVGL('StatsAddFrame').
+%   The caller still owns Screen('Flip'), so the panel can be drawn together
+%   with the stimulus in one frame.
+%
+%   Example:
+%       while running
+%           [ui, E] = PsychLVGLFrame(ui);
+%           S = PsychLVGLEvents('decode', E);
+%           for k = 1:numel(S)
+%               if S(k).target == slider && strcmp(S(k).name, 'VALUE_CHANGED')
+%                   contrast = S(k).param / 100;
+%               end
+%           end
+%           Screen('DrawTexture', win, stimulus);
+%           Screen('Flip', win);
+%       end
+%
+%   See also PSYCHLVGLOPEN, PSYCHLVGLGL, PSYCHLVGLCLOSE, PSYCHLVGLEVENTS.
 
-    switch lower(cmd)
-        case 'open'
-            varargout{1} = do_open(varargin{:});
-        case 'update'
-            [E, p] = do_update(varargin{:});
-            varargout{1} = E;
-            if nargout > 1; varargout{2} = p; end
-        case 'close'
-            do_close(varargin{:});
-        otherwise
-            error('psychlvgl:Usage', 'unknown PsychLVGLFrame command "%s"', cmd);
+    if nargin < 1 || ~isstruct(ui) || ~isfield(ui, 'win')
+        error('psychlvgl:Usage', ...
+              'Usage: [ui, E] = PsychLVGLFrame(ui), with the struct PsychLVGLOpen returned');
     end
-end
 
-function panel = do_open(win, dst, panelW, panelH, opts)
-    if nargin < 5; opts = struct(); end
-    require_ptb();
+    tNow = plv_now();
+    [mouse, wheel, keys] = PsychLVGLInput('Poll', ui.kq, ui.win, ui.dst, ui.w, ui.h);
 
-    InitializeMatlabOpenGL(1);
-    Screen('BeginOpenGL', win);
-    glTex = PsychLVGL('Init', panelW, panelH, opts);
-    Screen('EndOpenGL', win);
-
-    global GL %#ok<GVMIS>
-    tex = Screen('SetOpenGLTexture', win, [], glTex, GL.TEXTURE_2D, panelW, panelH);
-
-    panel = struct('win', win, 'tex', tex, 'glTex', glTex, 'dst', dst, ...
-                   'w', panelW, 'h', panelH, 'tLast', GetSecs());
-end
-
-function [E, panel] = do_update(panel, kq)
-    require_ptb();
-    tNow = GetSecs();
-
-    [mouse, wheel, keys] = PsychLVGLInput('Poll', kq, panel.win, panel.dst, ...
-                                          panel.w, panel.h);
-
-    Screen('BeginOpenGL', panel.win);
-    PsychLVGL('Update', tNow, mouse, wheel, keys);
-    Screen('EndOpenGL', panel.win);
+    plv_wrap_update(ui.win, tNow, mouse, wheel, keys);
 
     % No source rectangle: a texture rendered through a framebuffer object
     % already matches the row order Psychtoolbox expects, which
     % tests/gl/test_gl_render checks.
-    Screen('DrawTexture', panel.win, panel.tex, [], panel.dst);
+    Screen('DrawTexture', ui.win, ui.tex, [], ui.dst);
 
-    PsychLVGL('StatsAddFrame', tNow - panel.tLast);
-    panel.tLast = tNow;
-    E = PsychLVGL('Poll');
+    PsychLVGL('StatsAddFrame', tNow - ui.tLast);
+    ui.tLast = tNow;
+
+    if nargout > 1
+        E = PsychLVGL('Poll');
+    end
 end
 
-function do_close(panel)
-    Screen('BeginOpenGL', panel.win);
-    PsychLVGL('Shutdown');
-    Screen('EndOpenGL', panel.win);
+function plv_wrap_update(win, tNow, mouse, wheel, keys)
+% onCleanup, not a plain call pair: a MEX error inside Update must still
+% leave Psychtoolbox in 2D mode.
+    Screen('BeginOpenGL', win);
+    back2d = onCleanup(@() plv_end_gl(win)); %#ok<NASGU>
+    PsychLVGL('Update', tNow, mouse, wheel, keys);
 end
 
-function require_ptb()
-    if exist('Screen', 'file') == 0
-        error('psychlvgl:NoPTB', ...
-              'PsychLVGLFrame needs Psychtoolbox; it is not on the path.');
+function plv_end_gl(win)
+    try
+        Screen('EndOpenGL', win);
+    catch
+        % The window is already gone; nothing left to switch back to.
+    end
+end
+
+function t = plv_now()
+    if exist('GetSecs', 'file') ~= 0
+        t = GetSecs();
+    else
+        t = now() * 86400;
     end
 end

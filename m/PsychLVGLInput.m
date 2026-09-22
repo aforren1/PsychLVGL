@@ -39,15 +39,43 @@ function kq = do_start(win)
                 'Psychtoolbox is not on the path; PsychLVGLInput returns neutral input.');
         return;
     end
-    KbQueueCreate();
-    KbQueueStart();
-    GetMouseWheel();      % clear the click counter
+
+    % The keyboard queue needs PsychHID, which is not usable on every machine.
+    % A panel that cannot read the keyboard is still worth having, so a failure
+    % here turns input off rather than stopping the script.
+    try
+        try
+            KbQueueCreate();
+        catch
+            % A queue already exists, for example from a second panel.
+            KbQueueStop();
+            KbQueueRelease();
+            KbQueueCreate();
+        end
+        KbQueueStart();
+    catch err
+        warning('psychlvgl:NoKeyboard', ...
+                ['the keyboard queue is not available (%s); the panel runs ' ...
+                 'without mouse and keyboard input.'], err.message);
+        kq.hasPTB = false;
+        return;
+    end
+
+    try
+        GetMouseWheel();  % clear the click counter
+    catch
+        % No wheel on this device.
+    end
 end
 
 function do_stop(kq)
     if nargin < 1 || ~isstruct(kq) || ~kq.hasPTB; return; end
-    KbQueueStop();
-    KbQueueRelease();
+    try
+        KbQueueStop();
+        KbQueueRelease();
+    catch
+        % Already stopped, or the queue went with the window.
+    end
 end
 
 function [mouse, wheel, keys] = do_poll(kq, win, dst, panelW, panelH)

@@ -32,7 +32,8 @@ function run_tests(variant)
 
     if strcmp(variant, 'sw')
         run_group({'test_dispatch', 'test_handles', 'test_events', 'test_keypad', ...
-                   'test_tick', 'test_gen_marshal', 'test_checksum'});
+                   'test_tick', 'test_gen_marshal', 'test_checksum', ...
+                   'test_helpers'});
         fprintf(['-- tests/gl skipped: they need the GPU variant. ' ...
                  'Run `build` then `run_tests gl` in a fresh session.\n']);
     elseif screen_works()

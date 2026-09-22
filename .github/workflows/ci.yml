@@ -51,6 +51,13 @@ jobs:
             git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
+      - name: Install the OpenGL link library
+        if: runner.os == 'Linux'
+        # The GPU variant links against libGL. The runner image has the runtime
+        # library but not the unversioned libGL.so link that -lGL needs.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1-mesa-dev libx11-dev
       - uses: matlab-actions/setup-matlab@v3
         with:
           release: ${{ matrix.release }}

@@ -17,6 +17,7 @@ model and the event model. This file tells you how to build, test and run.
 | CMake | 3.16 or later |
 | C compiler | MSVC 2022 for MATLAB on Windows, the MinGW gcc that Octave ships, gcc or clang elsewhere |
 | Psychtoolbox | 3.0.19 or later, only for the GPU build and the demo |
+| Linux packages | `libgl1-mesa-dev` (or `libgl-dev`) for the GPU build, which links `libGL`; add `libx11-dev`, `xvfb`, and `libgl1-mesa-dri` for the native smoke test |
 | Python and uv | only to regenerate the bindings |
 
 ## Get the sources
@@ -96,8 +97,11 @@ Run the two suites in separate engine sessions, because each needs its own
 MEX on the path.
 
 The no-GL suite covers the handle table, the event ring, the keypad, dispatch
-and argument errors, the tick, every generated subcommand, and a CRC32 of the
-rendered software buffer. The GL suite opens one 640x480 Psychtoolbox window
+and argument errors, the tick, every generated subcommand, a CRC32 of the
+rendered software buffer, and the four helper M-files. The helpers are tested
+against a Psychtoolbox stub in `tests/stub`, which records the calls and
+answers them, so the suite checks that every `Screen('BeginOpenGL')` has its
+`Screen('EndOpenGL')` even when the wrapped call fails. The GL suite opens one 640x480 Psychtoolbox window
 and checks the texture id, the rendered colors, the panel orientation, a click,
 and a resize.
 
@@ -134,15 +138,24 @@ the CI job does.
 
 ## Use it in an experiment
 
+Four calls carry the OpenGL bookkeeping, so the script never writes a
+`Screen('BeginOpenGL')` and `Screen('EndOpenGL')` pair:
+
+| Call | What it does |
+|---|---|
+| `ui = PsychLVGLOpen(win, w, h [, dst] [, opts])` | Creates the panel, wraps its OpenGL texture as a Psychtoolbox texture, starts the keyboard queue. |
+| `[ui, E] = PsychLVGLFrame(ui)` | One frame: input, update, draw the panel, return the events. |
+| `[...] = PsychLVGLGL(ui, subcommand, ...)` | Any single subcommand that needs the OpenGL context. |
+| `PsychLVGLClose(ui)` | Shuts the panel down and frees the texture. Safe twice. |
+
 ```matlab
 PsychLVGLSetup();
-InitializeMatlabOpenGL(1);
+InitializeMatlabOpenGL(1);                 % before the window, not after
 [win, winRect] = PsychImaging('OpenWindow', screenid, 0);
 
 panelW = 400; panelH = 600;
 dst = [20 20 20+panelW 20+panelH];
-panel = PsychLVGLFrame('Open', win, dst, panelW, panelH);
-kq = PsychLVGLInput('Start', win);
+ui = PsychLVGLOpen(win, panelW, panelH, dst);
 
 scr = PsychLVGL('ScreenActive');
 sl = PsychLVGL('SliderCreate', scr);
@@ -151,18 +164,54 @@ PsychLVGL('ObjAlign', sl, 'LV_ALIGN_CENTER', 0, 0);
 PsychLVGL('AddToGroup', sl);
 
 while running
-    [E, panel] = PsychLVGLFrame('Update', panel, kq);
+    [ui, E] = PsychLVGLFrame(ui);
     S = PsychLVGLEvents('decode', E);
     % ... read S(k).target, S(k).name, S(k).param ...
+    Screen('DrawTexture', win, stimulus);
     Screen('Flip', win);
 end
 
-PsychLVGLInput('Stop', kq);
-PsychLVGLFrame('Close', panel);
+PsychLVGLClose(ui);
 ```
 
+Widget calls need no OpenGL context, so they go straight to `PsychLVGL`. Only
+`Init`, `Update` and `Shutdown` touch OpenGL, and the helpers wrap those three.
+`PsychLVGLGL` is there for a frame loop that gathers its own input:
+
+```matlab
+dirty = PsychLVGLGL(ui, 'Update', GetSecs(), [x y pressed], wheel, keys);
+Screen('DrawTexture', win, ui.tex, [], ui.dst);
+```
+
+### The low-level form
+
+The helpers are M-files with no state of their own, so the raw sequence works
+just as well. SPEC section 4.3 shows both. In short:
+
+```matlab
+Screen('BeginOpenGL', win);
+glTex = PsychLVGL('Init', panelW, panelH);
+Screen('EndOpenGL', win);
+tex = Screen('SetOpenGLTexture', win, [], glTex, GL.TEXTURE_2D, panelW, panelH, 32);
+...
+Screen('BeginOpenGL', win);
+PsychLVGL('Update', GetSecs(), mouse, wheel, keys);
+Screen('EndOpenGL', win);
+Screen('DrawTexture', win, tex, [], dst);
+E = PsychLVGL('Poll');
+...
+Screen('BeginOpenGL', win);
+PsychLVGL('Shutdown');
+Screen('EndOpenGL', win);
+Screen('Close', tex);
+```
+
+Every subcommand marked GL in SPEC section 5 has to run between `BeginOpenGL`
+and `EndOpenGL`, and the MEX raises `psychlvgl:NoGLContext` when it does not.
+
 `PsychLVGLDemo` is a working example: a Gabor patch whose contrast follows a
-slider, with a dropdown, a text area and a status label.
+slider, with a dropdown, a text area and a status label. `PsychLVGLDemo(3)`
+runs it for three seconds, which is what a smoke run does.
 
 `PsychLVGLPerf` sweeps panel sizes and widget counts and prints the Update
 times together with the cost of the two Psychtoolbox context switches.

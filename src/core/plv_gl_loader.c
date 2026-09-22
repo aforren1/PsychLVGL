@@ -68,12 +68,15 @@ void * plv_gl_context(void)
 
 #else
 
-#include <dlfcn.h>
-#include <GL/glx.h>
+/* Declared here rather than through GL/glx.h so that building the MEX needs
+ * no GLX development headers, only libGL itself, which exports both symbols.
+ * The MATLAB CI runner, for one, has libGL but not the headers. */
+extern GLADapiproc glXGetProcAddressARB(const unsigned char * name);
+extern void * glXGetCurrentContext(void);
 
 static GLADapiproc plv_get_proc(const char * name)
 {
-    return (GLADapiproc)glXGetProcAddressARB((const GLubyte *)name);
+    return glXGetProcAddressARB((const unsigned char *)name);
 }
 
 int plv_gl_has_context(void)

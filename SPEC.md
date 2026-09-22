@@ -144,6 +144,41 @@ These facts come from the LVGL v9.6.0 tree.
 
 ### 4.3 Required call order
 
+Four helper M-files carry the call order, so a script never writes a
+`Screen('BeginOpenGL')` and `Screen('EndOpenGL')` pair itself:
+
+```matlab
+% Setup, once
+PsychLVGLSetup();                                       % the MEX for this platform
+InitializeMatlabOpenGL(1);                              % required by Screen('BeginOpenGL')
+[win, winRect] = PsychImaging('OpenWindow', screenid, 0);
+
+panelW = 400; panelH = 600;
+dst = [20 20 20 + panelW, 20 + panelH];
+ui  = PsychLVGLOpen(win, panelW, panelH, dst);          % Init, wrap, keyboard queue
+
+% Build the UI, once (no GL calls)
+scr = PsychLVGL('ScreenActive');
+sl  = PsychLVGL('SliderCreate', scr);
+PsychLVGL('ObjSetSize', sl, 300, 20);
+PsychLVGL('ObjAlign', sl, 'CENTER', 0, 0);
+
+% Every frame
+while running
+    [ui, E] = PsychLVGLFrame(ui);                       % input, Update, DrawTexture, Poll
+    Screen('Flip', win);                                % the script still owns the flip
+end
+
+% Teardown, once
+PsychLVGLClose(ui);
+sca;
+```
+
+`PsychLVGLGL(ui, 'Update', tNow, mouse, wheel, keys)` wraps any single
+subcommand marked GL in section 5, for a frame loop that needs its own input.
+
+The same sequence without the helpers, which is what they do:
+
 ```matlab
 % Setup, once
 InitializeMatlabOpenGL(1);                              % required by Screen('BeginOpenGL')
@@ -152,7 +187,7 @@ panelW = 400; panelH = 600;
 Screen('BeginOpenGL', win);
 glTex = PsychLVGL('Init', panelW, panelH);              % LVGL renders into this GL texture
 Screen('EndOpenGL', win);
-tex = Screen('SetOpenGLTexture', win, [], glTex, GL_TEXTURE_2D, panelW, panelH);
+tex = Screen('SetOpenGLTexture', win, [], glTex, GL_TEXTURE_2D, panelW, panelH, 32);
 dst = [20 20 20 + panelW, 20 + panelH];
 kq  = PsychLVGLInput('Start', win);
 
@@ -175,12 +210,10 @@ E = PsychLVGL('Poll');                                   % Nx5 double, see secti
 Screen('BeginOpenGL', win);
 PsychLVGL('Shutdown');
 Screen('EndOpenGL', win);
+Screen('Close', tex);
 PsychLVGLInput('Stop', kq);
 sca;
 ```
-
-`PsychLVGLFrame('Update', win, kq, panel)` wraps the per-frame sequence for
-scripts that prefer one call.
 
 ### 4.4 Rules
 
@@ -284,15 +317,27 @@ dropped and `stats.eventsDropped` increments.
 
 ### 5.5 Helper M-files
 
+The first four carry the OpenGL call order, so a script never writes a
+`Screen('BeginOpenGL')` and `Screen('EndOpenGL')` pair itself. The naming
+follows `Screen('OpenWindow')` and `Screen('Close')`, and
+`PsychPortAudio('Open')` and `('Close')`.
+
 | File | Purpose |
 |---|---|
+| `m/PsychLVGLOpen.m` | `ui = PsychLVGLOpen(win, w, h [, dst] [, opts])`. Checks that 3D graphics are on, wraps `Init` in a BeginOpenGL pair, wraps the GL texture with `Screen('SetOpenGLTexture')`, starts the keyboard queue, returns the struct the script keeps. |
+| `m/PsychLVGLFrame.m` | `[ui, E] = PsychLVGLFrame(ui)`. Input, BeginOpenGL, `Update`, EndOpenGL, `DrawTexture`, `Poll`. The script still owns `Screen('Flip')`. |
+| `m/PsychLVGLGL.m` | `[...] = PsychLVGLGL(ui, subcommand, ...)`. Wraps any one subcommand marked GL. Calls straight through when `Screen('GetOpenGLDrawMode')` reports the userspace context is already current. |
+| `m/PsychLVGLClose.m` | `PsychLVGLClose(ui)`. Wraps `Shutdown`, closes the PTB texture, stops the keyboard queue. Safe twice, and safe after the window is closed. |
+| `m/PsychLVGLSetup.m` | Puts `dist/<arch>` and `m/` on the path for this engine and platform. |
 | `m/PsychLVGL.m` | Help text only. The MEX shadows it once built. Generated. |
 | `m/PsychLVGLInput.m` | `Start`, `Poll`, `Stop`. Wraps `KbQueueCreate`, `KbQueueStart`, `KbEventGet`, `GetMouse`, `GetMouseWheel`. Converts mouse to panel pixels and key events to LVGL key codes. |
 | `m/PsychLVGLKeyMap.m` | PTB key event to LVGL key code, section 6.3. |
-| `m/PsychLVGLFrame.m` | One-call per-frame wrapper: input, BeginOpenGL, Update, EndOpenGL, DrawTexture. Holds the PTB texture handle and destination rectangle in a struct the script keeps. |
 | `m/PsychLVGLEvents.m` | `decode` and `filter`. |
 | `m/PsychLVGLOp.m` | Generated struct of opcodes. |
 | `m/PsychLVGLDemo.m` | Demo: Gabor patch controlled by a slider, a dropdown, a text area. |
+
+Every one of the four uses `onCleanup` or `try` around `Screen('EndOpenGL')`,
+so an error inside the wrapped region still leaves Psychtoolbox in 2D mode.
 
 ### 5.6 Error identifiers
 
@@ -830,3 +875,5 @@ Section 13 stays the plan of record; only this section is added.
 | D30 | The MEX is compiled with `LV_CONF_INCLUDE_SIMPLE` and `-I<project>` instead of `LV_CONF_PATH`, because `mex` does not pass the quotes a path macro needs through to the compiler. The static library still uses `LV_BUILD_CONF_PATH`, and both read the same file. | `mex` argument handling. |
 | D31 | `third_party/lvgl` is a submodule pinned at v9.6.0, and `third_party/PINS.md` records the commit. It was a plain clone while phase 1 was written and was registered as a submodule at the same commit on 2026-09-22. The CI workflow keeps a "Fetch LVGL" step that clones that commit when a checkout was made without submodules. | The repository did not exist while phase 1 was written. |
 | D32 | Doxygen 1.18.0 was installed with scoop while trying to run `gen_json.py`. The generator that shipped does not need it. | Recorded for reproducibility. |
+| D33 | Section 4.3 and section 5.5 gain a four call helper layer: `PsychLVGLOpen`, `PsychLVGLFrame`, `PsychLVGLGL` and `PsychLVGLClose`. Version 0.1 had `PsychLVGLFrame('Open'|'Update'|'Close', ...)`, one function with a string subcommand; that form is gone and its three callers were migrated. `PsychLVGLFrame` is now `[ui, E] = PsychLVGLFrame(ui)`. `PsychLVGLOpen` also reports the missing `InitializeMatlabOpenGL` case as `psychlvgl:No3DGraphics` rather than letting `Screen('BeginOpenGL')` fail with a message that does not name the cause, and it passes a texture depth of 32 to `Screen('SetOpenGLTexture')`, because without it Psychtoolbox reads the format back from a texture that belongs to the userspace context and fails. `tests/test_helpers.m` covers the wrapping with a Psychtoolbox stub in `tests/stub`, so the no-GL suite checks it with no window and no GPU. | A script should never write a `Screen('BeginOpenGL')` pair, and one function per verb reads better than one function with a verb argument. The same shape is used in the sibling projects. |
+| D34 | `Shutdown` frees the panel texture in the GPU build, although the display itself survives (D3). A script that wrapped the texture with `Screen('SetOpenGLTexture')` closes the Psychtoolbox texture next, and Psychtoolbox deletes the OpenGL name with it, so keeping the name would leave the next session rendering into a texture that no longer exists. Rule R5 still holds, but the new texture id is allowed to be the integer the driver just freed, so a script re-wraps the id it is given rather than comparing it with the old one. | Found by running the GL suite through the new helpers. |

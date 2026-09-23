@@ -41,4 +41,4 @@ time by CMake or by `tools/apply_lvgl_patches.sh`:
 | `patches/lvgl/0002-nanovg-image-from-gl-texture.patch` | 5 | image descriptors that name an OpenGL texture, upright or transposed, drawn by the NanoVG unit (SPEC D41) |
 
 The submodule pointer stays at the commit above; the patches live in the
-working tree only. See README, "Vendored LVGL patches".
+working tree only. See DEV.md, "Vendored LVGL patches".

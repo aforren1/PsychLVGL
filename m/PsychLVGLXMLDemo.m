@@ -7,7 +7,7 @@ function PsychLVGLXMLDemo(seconds, screenshot)
 %                                 window as a PNG to file and returns; see
 %                                 tools/CaptureReadmeScreenshot.m.
 %
-%   The panel is tests/xml/demo/gabor_panel.xml, a screen as the LVGL editor
+%   The panel is examples/xml/gabor_panel/gabor_panel.xml, a screen as the LVGL editor
 %   saves it, with the components and declarations next to it. The demo
 %   builds nothing itself: PsychLVGLLoadXML creates every widget, and the
 %   subject "contrast" ties the slider, the arc, the value tile and the
@@ -16,8 +16,9 @@ function PsychLVGLXMLDemo(seconds, screenshot)
 %   spatial frequency and the drift the subjects hold. The small image in
 %   the panel is a Psychtoolbox texture drawn by LVGL with no copy.
 %
-%   Psychtoolbox with a working OpenGL context is required, and the source
-%   tree: the XML and the window helper live under tests/.
+%   Psychtoolbox with a working OpenGL context is required. The XML ships in
+%   examples/ and the window helper in m/private, so a release package runs
+%   it.
 
     if nargin < 1 || isempty(seconds)
         seconds = Inf;
@@ -27,24 +28,23 @@ function PsychLVGLXMLDemo(seconds, screenshot)
     end
 
     root = fileparts(fileparts(mfilename('fullpath')));
-    xml = fullfile(root, 'tests', 'xml', 'demo', 'gabor_panel.xml');
+    xml = fullfile(root, 'examples', 'xml', 'gabor_panel', 'gabor_panel.xml');
     if exist(xml, 'file') ~= 2
-        error('psychlvgl:NotFound', ...
-              'PsychLVGLXMLDemo needs the source tree: %s is missing', xml);
+        error('psychlvgl:NotFound', 'PsychLVGLXMLDemo: %s is missing', xml);
     end
-    % Both path entries go on before the first call into the MEX; the
-    % window helper is the one place that sets the test preferences.
-    addpath(fullfile(root, 'tests', 'gl'));
+    % The window helper is in m/private, so nothing here changes the path
+    % while the MEX may be loaded (SPEC D35). It sets the two development
+    % preferences, SkipSyncTests and VisualDebugLevel.
     PsychLVGLSetup();
 
     PsychDefaultSetup(2);
-    [win, winRect] = ptb_test_window([0 0 1280 720], 0.5);
+    [win, winRect] = psychlvgl_demo_window([0 0 1280 720], 0.5);
 
     panelW = 440;
     panelH = 680;
     dst = [20, 20, 20 + panelW, 20 + panelH];
     ui = PsychLVGLOpen(win, panelW, panelH, dst);
-    closer = onCleanup(@() plv_demo_close(ui)); %#ok<NASGU>
+    closer = onCleanup(@() plv_demo_close(ui, ~isempty(screenshot))); %#ok<NASGU>
 
     [~, named] = PsychLVGLLoadXML(xml);
     PsychLVGL('AddToGroup', named.contrast_slider);
@@ -115,7 +115,7 @@ function PsychLVGLXMLDemo(seconds, screenshot)
                kPsychDontDoRotation, [phase, freq / 100, 60, contrast, 1, 0, 0, 0]);
 
         if ~checked
-            sd = gabor_std(win, gaborRect);
+            sd = psychlvgl_gabor_std(win, gaborRect);
             if sd < 0.02 && contrast > 0.2
                 error('psychlvgl:GaborFlat', ...
                       'the Gabor is flat: pixel standard deviation %.4f is below 0.02', sd);
@@ -159,7 +159,16 @@ function plv_save_screenshot(win, file)
     fprintf('screenshot %s: %dx%d, %.0f KB\n', file, size(shot, 2), size(shot, 1), info.bytes / 1024);
 end
 
-function plv_demo_close(ui)
+function plv_demo_close(ui, closeWindow)
+% The panel closes, the window stays. LVGL builds its NanoVG renderer once
+% per process, so a second window, which is a second OpenGL context, cannot
+% show a panel (README, "Known limits"). Keeping the window lets the demo run
+% again in the same session on the same context.
     PsychLVGLClose(ui);
-    ptb_test_window_close();
+    if closeWindow
+        psychlvgl_demo_window_close();
+    else
+        fprintf('The demo window stays open, so the demo can run again in this session.\n');
+        fprintf('sca closes it; after that, a panel needs a new session.\n');
+    end
 end

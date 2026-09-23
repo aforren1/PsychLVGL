@@ -3,170 +3,199 @@
 `PsychLVGL` is a MEX binding of LVGL 9.6 for MATLAB and GNU Octave. It draws
 retained mode GUI panels inside a Psychtoolbox (PTB) onscreen window. LVGL
 renders on the GPU with its NanoVG draw unit into an OpenGL texture. PTB draws
-that texture like any other PTB texture, so no pixels cross the CPU.
+that texture like any other PTB texture, so no pixels cross the CPU. Pick it
+when an experiment needs a real control panel next to the stimulus: sliders,
+dropdowns, text fields, charts and tables that the participant or the
+experimenter uses while PTB keeps its own timing. You can build the panel with
+function calls, or design it in the LVGL editor and load the XML file at run
+time, with no compiler.
 
 ![A dark LVGL control panel on the left of a Psychtoolbox window, with a contrast slider, a frequency dropdown, a drift switch, a value tile, an arc, a color wheel image, a line chart of the contrast history, three buttons, a progress bar and a trial table; a drifting Gabor patch fills the right side](docs/images/psychlvgl-xml-demo.png)
 
 The panel of `PsychLVGLXMLDemo`, loaded from the XML file
-`tests/xml/demo/gabor_panel.xml` and drawn into a Psychtoolbox window next to
-the Gabor patch it controls. `tools/CaptureReadmeScreenshot.m` makes this
-image again.
+`examples/xml/gabor_panel/gabor_panel.xml` and drawn into a Psychtoolbox window next to
+the Gabor patch it controls.
 
-`SPEC.md` is the design reference. Read it for the marshaling rules, the handle
-model and the event model. This file tells you how to build, test and run.
+## Install
 
-Status: phases 1 to 3 of SPEC section 13 are implemented. Phase 2 adds
-charts, shared styles, images drawn straight from Psychtoolbox textures, TTF
-fonts, and GPU timing. Phase 3 loads user interfaces that the LVGL editor
-saves as XML, at run time and with no compiler; see "Load an XML user
-interface" below.
+You need MATLAB or GNU Octave and Psychtoolbox. You do not need a compiler.
+See [Requirements](#requirements) for the versions.
 
-## Requirements
+1. Open the Releases page:
+   <https://github.com/aforren1/PsychLVGL/releases>.
 
-| Item | Version |
-|---|---|
-| MATLAB | R2023a verified, R2019b or later expected. On Apple silicon, R2023b or later, because that is the first native build |
-| GNU Octave | 10.1 verified on Windows, 6.4 verified on Linux (WSL, Ubuntu 22.04). On macOS, the Homebrew build (`brew install octave`) |
-| Operating system | Windows 10 or later, Linux, macOS 12 or later on Apple silicon (`maca64`). Intel Macs are not built or tested |
-| CMake | 3.16 or later |
-| C and C++ compiler | MSVC 2022 for MATLAB on Windows, the MinGW gcc and g++ that Octave ships, Xcode command line tools on macOS, gcc and g++ or clang elsewhere. C++ builds only pugixml, inside the static library |
-| Psychtoolbox | 3.0.19 or later, only for the GPU build and the demo |
-| Linux packages | `libgl1-mesa-dev` (or `libgl-dev`) for the GPU build, which links `libGL`; add `libx11-dev`, `xvfb`, and `libgl1-mesa-dri` for the native smoke test |
-| macOS frameworks | `OpenGL.framework`, which the Xcode command line tools install. Nothing else |
-| Python and uv | only to regenerate the bindings |
+   The first release is pending. Until it is published, the page has no zip
+   files; build from the sources instead, as [DEV.md](DEV.md) describes.
 
-## Get the sources
+2. Download the zip for your engine and platform. The names follow the
+   pattern `psychlvgl-<engine>-<platform>[-<era>].zip`:
 
-LVGL is a submodule, so clone with it:
+   | Zip | For |
+   |---|---|
+   | `psychlvgl-matlab-windows.zip` | MATLAB R2022b and later on Windows |
+   | `psychlvgl-matlab-linux.zip` | MATLAB R2022b and later on Linux |
+   | `psychlvgl-matlab-macos.zip` | MATLAB R2023b and later on Apple silicon Macs |
+   | `psychlvgl-octave-windows.zip` | Octave 10.x on Windows |
+   | `psychlvgl-octave-linux-6.4.zip` | Octave 6.4 through 9.x on Linux |
+   | `psychlvgl-octave-linux-10.zip` | Octave 10.x and later on Linux |
+   | `psychlvgl-octave-macos.zip` | Homebrew Octave on Apple silicon Macs |
 
-```sh
-git clone --recurse-submodules https://github.com/aforren1/PsychLVGL.git
-cd PsychLVGL
-```
+3. Make a new, empty folder, for example `C:\toolboxes\PsychLVGL`, and unzip
+   the file into it. The zip has no top folder of its own. After the unzip,
+   the folder holds:
 
-If you already cloned without `--recurse-submodules`:
+   ```
+   PsychLVGL/
+     PsychLVGLSetup.m     puts PsychLVGL on the path
+     dist/<arch>/         the GPU build; this is the one you use
+     dist-sw/<arch>/      a software build for the test suite only
+     m/                   the helper M-files, the demos and the help text
+     examples/            the XML panel of PsychLVGLXMLDemo
+     docs/images/         the screenshot in this file
+     lv_conf.h  README.md  SPEC.md
+   ```
 
-```sh
-git submodule update --init --recursive
-```
+   `<arch>` is `win64`, `glnxa64` or `maca64`. Both builds are called
+   `PsychLVGL`, so only one of them can be on the path. `PsychLVGLSetup` puts
+   the GPU build in `dist/<arch>` on the path. The software build in
+   `dist-sw/<arch>` draws into memory, not onto the screen; the tests use it,
+   and an experiment never does.
 
-If the submodule cannot be fetched, the same commit can be cloned by hand:
+4. In MATLAB or Octave, go to that folder and run the setup:
 
-```sh
-git clone --branch v9.6.0 https://github.com/lvgl/lvgl.git third_party/lvgl
-```
+   ```matlab
+   cd C:\toolboxes\PsychLVGL
+   PsychLVGLSetup
+   ```
 
-pugixml, the XML parser, is a plain clone for now, not a submodule. Clone it
-next to LVGL:
+   From another folder, this line does the same:
 
-```sh
-git clone --branch v1.16 https://github.com/zeux/pugixml.git third_party/pugixml
-```
+   ```matlab
+   run('C:\toolboxes\PsychLVGL\PsychLVGLSetup.m')
+   ```
 
-`third_party/PINS.md` records the exact commits either way.
+   `PsychLVGLSetup` adds two folders to the path: `m/` and, in front of it,
+   `dist/<arch>`. It changes the path only when that order is not there yet,
+   so you can call it at the top of every experiment script.
 
-## Build
+5. Check the install:
 
-From the repository root:
+   ```matlab
+   PsychLVGL('Version')
+   ```
 
-```matlab
-build              % the GPU build, into dist/<arch>
-build test-sw      % the software test build, into dist-sw/<arch>
-build test         % build test-sw, then run the no-GL tests
-build test-gl      % build the GPU variant, then run the GL tests
-build gen          % regenerate the bindings, needs uv and a C compiler
-build clean        % remove the build and install directories
-```
+   The result is a struct. `build` must be `gl`, which is the GPU build, and
+   `psychlvgl` is the version of the release. In MATLAB it looks like this:
 
-`build` compiles LVGL with CMake against the project `lv_conf.h`, then calls
-`mex` on the binding sources and links the static libraries. The static library
-and the MEX must come from one toolchain; `build.m` compares a marker string
-compiled into the library with the compiler `mex` uses and stops if they differ.
+   ```
+                lvgl: '9.6.0'
+           psychlvgl: '0.1.0'
+       nanovgBackend: 'GL3'
+           glVersion: 'unknown'
+          glRenderer: 'unknown'
+               build: 'gl'
+   ```
 
-`MEX_CMAKE_GENERATOR` overrides the CMake generator. On Windows the
-"MinGW Makefiles" generator refuses to run while `sh.exe` is on PATH, so use
-`Ninja` inside a Git Bash or MSYS2 shell.
+   `glVersion` and `glRenderer` stay `unknown` until a panel is open.
 
-Octave names its MEX `PsychLVGL.mex` on every operating system, so the output
-carries the architecture: `dist/win64`, `dist/glnxa64`, `dist/maci64`,
-`dist/maca64`. Put the right one on the path with:
+### Keep the path for later sessions
 
-```matlab
-PsychLVGLSetup          % the GPU build
-PsychLVGLSetup('sw')    % the software test build
-```
-
-## Two build variants
-
-| Variant | Output | Renders with | Needs |
-|---|---|---|---|
-| GPU, the default | `dist/<arch>` | LVGL OpenGL texture driver plus the NanoVG draw unit | a current OpenGL 3.2 context, normally from `Screen('BeginOpenGL')`. On macOS the context is GL 2.1 and the build uses the NanoVG GL2 shaders; see "Known limits" |
-| software, for tests | `dist-sw/<arch>` | the LVGL software draw unit into a buffer the MEX owns | nothing |
-
-Both are called `PsychLVGL`, so only one can be on the path at a time.
-
-## Tests
+The steps above last for one session. To keep the path, add `save`:
 
 ```matlab
-build test-sw
-run_tests sw        % the no-GL suite, MATLAB and Octave, no GPU, no PTB
-
-build
-run_tests gl        % the GL suite, needs Psychtoolbox and a GPU
+cd C:\toolboxes\PsychLVGL
+PsychLVGLSetup save
 ```
 
-Run the two suites in separate engine sessions, because each needs its own
-MEX on the path.
+`save` runs `savepath` after the path is set. MATLAB writes its `pathdef.m`,
+and Octave writes your `~/.octaverc`. If that file cannot be written, you get
+a warning with a `run(...)` line. Put that line in your `startup.m` (MATLAB)
+or `~/.octaverc` (Octave), or where your lab adds Psychtoolbox to the path.
 
-The no-GL suite covers the handle table, the event ring, the keypad, dispatch
-and argument errors, the tick, every generated subcommand, a CRC32 of the
-rendered software buffer, charts and their series handles, styles, fonts,
-images, the helper M-files, `ParseXML`, and the XML interpreter on the
-fixtures in `tests/xml`, including eight example files copied from the LVGL
-tree. The helpers are tested
-against a Psychtoolbox stub in `tests/stub`, which records the calls and
-answers them, so the suite checks that every `Screen('BeginOpenGL')` has its
-`Screen('EndOpenGL')` even when the wrapped call fails. `run_tests` puts that
-directory on the path once and takes it off once; no test changes the load
-path, and nothing here calls `rehash`, because a path change while the MEX is
-loaded can drive Octave 10 into unbounded recursion (SPEC deviation D35). The GL suite opens one 640x480 Psychtoolbox window
-and checks the texture id, the rendered colors, the panel orientation, a click,
-a resize, a chart, a style, a texture image, a TTF label, and an XML screen.
+Under Octave 10, do not call `addpath`, `rmpath` or `rehash` while a panel is
+open or after the first `PsychLVGL` call of a session. See
+[Known limits](#known-limits).
 
-The GL tests, the demo and the perf script all open their window through
-`tests/gl/ptb_test_window.m`. That is the one place that sets
-`Screen('Preference', 'SkipSyncTests', 2)` and
-`Screen('Preference', 'VisualDebugLevel', 0)`, so repeated runs skip the
-display sync calibration and the startup splash. Never use those settings for
-a real experiment session. The helper also caches the window, because LVGL
-allows only one OpenGL context per process.
+### Remove it
 
-### Native smoke test
-
-`smoke_gl` drives the OpenGL and NanoVG path with no engine at all. It creates
-a hidden window and a legacy context, runs the core layer through several
-Update cycles with synthetic input, reads the panel texture back through a
-framebuffer object, and prints the Update times. A second scene draws a shared
-style, a line chart, an image straight from an OpenGL texture and a TTF label,
-and checks each one in the read-back pixels. Before any of that it parses a
-small XML document through the C interface of the parser, so the C++ part of
-the core library runs on every platform that runs the smoke test.
-
-```sh
-# Windows
-cmake -S . -B build-smoke -DPSYCHLVGL_SMOKE_GL=ON
-cmake --build build-smoke --config Release --target smoke_gl
-./build-smoke/Release/smoke_gl
-
-# Linux, in its own build tree so a shared checkout keeps both
-cmake -S . -B build-smoke-linux -DCMAKE_BUILD_TYPE=Release -DPSYCHLVGL_SMOKE_GL=ON
-cmake --build build-smoke-linux --target smoke_gl --parallel
-LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a ./build-smoke-linux/smoke_gl
+```matlab
+PsychLVGLSetup remove          % this session only
+PsychLVGLSetup remove save     % and in the saved path too
 ```
 
-The Linux form needs `xvfb`, `libgl1-mesa-dri`, `libgl1-mesa-dev` and
-`libx11-dev`, and it runs on Mesa's llvmpipe software renderer. That is what
-the CI job does.
+`remove` takes `dist/<arch>`, `dist-sw/<arch>` and `m/` of this package off
+the path. Call `PsychLVGLClose(ui)` first if a panel is open. `remove` unloads
+the MEX before it changes the path. If the MEX stays locked, it tells you what
+to do and leaves the path as it is. If the package is not on the path,
+`remove` does nothing. To delete the package, remove it, then delete its
+folder.
+
+`m/` is off the path after `remove`, so a second `PsychLVGLSetup` call must
+come from the package folder or use the `run(...)` line.
+
+## A first panel
+
+This script puts a slider panel over a PTB stimulus. The slider sets the size
+of a white disc. It runs for ten seconds.
+
+```matlab
+PsychLVGLSetup();                                   % the GPU build on the path
+PsychDefaultSetup(2);
+InitializeMatlabOpenGL(1);                          % before the window, not after
+[win, rect] = PsychImaging('OpenWindow', max(Screen('Screens')), 0.5);
+ui = PsychLVGLOpen(win, 320, 80, [20 20 340 100]);  % panel size, then where to draw it
+
+sl = PsychLVGL('SliderCreate', PsychLVGL('ScreenActive'));
+PsychLVGL('ObjSetSize', sl, 260, 20);
+PsychLVGL('ObjAlign', sl, 'LV_ALIGN_CENTER', 0, 0);
+PsychLVGL('SliderSetValue', sl, 50, 0);
+
+t0 = GetSecs();
+while GetSecs() - t0 < 10
+    r = 20 + 4 * double(PsychLVGL('SliderGetValue', sl));
+    Screen('FillOval', win, [1 1 1], CenterRect([0 0 r r], rect));
+    ui = PsychLVGLFrame(ui);                         % input, update, draw the panel
+    Screen('Flip', win);
+end
+PsychLVGLClose(ui);
+sca;
+```
+
+Drag the slider with the mouse. The disc follows on the next frame. The panel
+is drawn after the stimulus, so it is on top. The next sections explain each
+call.
+
+Run the script once per engine session. `sca` closes the window, and a panel
+cannot draw into a second window in the same session (see
+[Known limits](#known-limits)). Restart MATLAB or Octave to run it again.
+
+## Run the demos
+
+Two demos come with PsychLVGL. Each one opens a window and draws a Gabor patch
+that a panel controls.
+
+```matlab
+PsychLVGLDemo          % the panel built with PsychLVGL calls; ESCAPE ends it
+PsychLVGLXMLDemo       % the same experiment, with its panel loaded from XML
+PsychLVGLDemo(3)       % runs for three seconds
+```
+
+`PsychLVGLDemo` has a contrast slider, a spatial frequency dropdown, a text
+area, a chart of the contrast history and a status label. `PsychLVGLXMLDemo`
+is the screenshot at the top of this file.
+
+Both demos run from the release package. `PsychLVGLXMLDemo` loads its panel
+from `examples/xml/gabor_panel/`, which is a good start for your own XML
+panel.
+
+When a demo ends, its panel closes and its window stays open. Run a demo
+again, or the other demo, and it uses the same window. LVGL allows one OpenGL
+context per process, so after `sca` closes the window, a panel needs a new
+engine session (see [Known limits](#known-limits)).
+
+The demo window skips the Psychtoolbox display sync tests and the startup
+splash, so it opens fast on any computer. Never copy those two settings into a
+real experiment.
 
 ## Use it in an experiment
 
@@ -214,6 +243,8 @@ Widget calls need no OpenGL context, so they go straight to `PsychLVGL`. Only
 dirty = PsychLVGLGL(ui, 'Update', GetSecs(), [x y pressed], wheel, keys);
 Screen('DrawTexture', win, ui.tex, [], ui.dst);
 ```
+
+`help PsychLVGL` lists every subcommand. SPEC section 5 describes them.
 
 ### The low-level form
 
@@ -295,17 +326,6 @@ contents call `PsychLVGL('ObjInvalidate', imageObj)`. `PsychLVGLClose` frees
 every chart series, style, image and font of the session, but not the
 Psychtoolbox textures.
 
-`PsychLVGLDemo` is a working example: a Gabor patch whose contrast follows a
-slider, with a dropdown, a text area and a status label. `PsychLVGLDemo(3)`
-runs it for three seconds, which is what a smoke run does.
-
-`PsychLVGLXMLDemo` is the same experiment with its panel loaded from XML; it
-is the screenshot at the top of this file. Both demos need the source tree,
-because their window helper and the XML live under `tests/`.
-
-`PsychLVGLPerf` sweeps panel sizes and widget counts and prints the Update
-times together with the cost of the two Psychtoolbox context switches.
-
 ## Load an XML user interface
 
 The LVGL editor (LVGL Pro, online or desktop) saves every screen and every
@@ -313,10 +333,24 @@ component of a project as an XML file. `PsychLVGLLoadXML` reads such a file at
 run time and makes the same widgets with ordinary `PsychLVGL` calls. Nothing
 is compiled, so a layout can change between two sessions of an experiment.
 
-1. Design the panel in the editor, or write the XML by hand. Keep the
-   project folder together: the screen files, the component files, and
-   `globals.xml` with the constants, styles, subjects, fonts and images.
-2. Open the panel, then load the screen into it:
+### Make the XML in the LVGL editor
+
+The LVGL editor is a separate product of the LVGL project. Its Community
+license is free for personal and open source use.
+
+1. Make a project in the editor, or write the XML by hand.
+2. Add a screen and put the widgets on it. Use the widgets and attributes in
+   [What the loader covers](#what-the-loader-covers); anything else gives a
+   warning when you load the file.
+3. Give each widget that your script must read or change a `name` attribute.
+   The loader returns the widget handles by that name.
+4. Save the project. Keep the project folder together: the screen files, the
+   component files, and `globals.xml` with the constants, styles, subjects,
+   fonts and images.
+
+### Load it
+
+1. Open the panel, then load the screen into it:
 
    ```matlab
    ui = PsychLVGLOpen(win, 440, 680, [20 20 460 700]);
@@ -325,14 +359,14 @@ is compiled, so a layout can change between two sessions of an experiment.
 
    A `<screen>` fills the active screen, or the object you give as the
    second argument. A `<component>` file becomes one child of it.
-3. Use the widgets by the `name` attribute they have in the XML:
+2. Use the widgets by the `name` attribute they have in the XML:
 
    ```matlab
    PsychLVGL('LabelSetText', named.status, 'ready');
    PsychLVGL('AddToGroup', named.contrast_slider);
    ```
 
-4. If the XML binds widgets to subjects (`bind_value`, `bind_text`,
+3. If the XML binds widgets to subjects (`bind_value`, `bind_text`,
    `bind_checked`, the `bind_flag_if_*` elements, `subject_*_event`), pass the
    events to `PsychLVGLSubjects` every frame and read the values from it:
 
@@ -369,7 +403,7 @@ PsychLVGLXMLToM('ui/main.xml', 'build_main_panel.m');
 | `img = PsychLVGLImageFromFile(path)` | An image handle from a PNG or JPEG file. The loader uses it for `<images>`. |
 | `tree = PsychLVGL('ParseXML', pathOrText)` | The parser itself: a struct tree with `tag`, `attributes`, `attr_names`, `text` and `children`. Needs no `Init`. |
 
-What the loader covers:
+### What the loader covers
 
 | XML | Status |
 |---|---|
@@ -381,59 +415,6 @@ What the loader covers:
 | `<subjects>` (`int`, `float`, `string`) and the `bind_*` and `subject_*_event` elements | Kept by `PsychLVGLSubjects`, which moves values through the event ring once per frame. |
 | Widgets that are not in the allowlist (button matrix, scale, keyboard, tab view, span, LED, and the others), grid track arrays, gradients, background and arc images, animations and timelines, translations, screen load events, event callbacks | Not mapped. Each gives one warning. SPEC deviation D59 has the list. |
 
-## Continuous integration
-
-`.github/workflows/ci.yml` builds and tests the project on every push and
-pull request, and publishes a release on a `v*` tag. Checkout is
-`submodules: recursive`, and a "Fetch LVGL" step clones the pinned commit when
-the submodule is not there. A "Fetch pugixml" step does the same for pugixml,
-with the commit in `PUGIXML_COMMIT`.
-
-Jobs:
-
-| Job | What it does |
-|---|---|
-| `matlab-build` | MATLAB R2022b on Ubuntu and Windows: software variant, `run_tests sw`, then the GPU variant compile only. Uploads `dist-sw/<arch>` and `dist/<arch>`. |
-| `matlab-test-forward` | The newest MATLAB runs the binaries the floor release built, with no rebuild. |
-| `octave-build` | `gnuoctave/octave` Docker images, one per binary compatible era (6.4 and 10.1). Same two builds and the same test run. |
-| `octave-test-forward` | Newer Octave versions run each era's binary. |
-| `octave-windows` | Official GNU Octave Windows zip (10.1.0, cached), using the toolchain and `make` it ships, as on a developer machine. |
-| `smoke-gl-linux` | Builds and runs `smoke_gl` under Xvfb and Mesa llvmpipe. This is the only automated coverage of the NanoVG GL3 path, because no runner has a GPU. |
-| `octave-macos` | Homebrew Octave on `macos-latest` (Apple silicon): same two builds and the same test run, uploaded as `maca64`. |
-| `smoke-gl-macos` | Builds and runs `smoke_gl` against a drawable-less CGL context, which is the GL 2.1 compatibility profile Psychtoolbox uses on macOS. |
-| `release` | On a `v*` tag, zips each artifact and publishes a GitHub Release. |
-
-Four units build or test macOS: the `macos-latest` entries of `matlab-build`
-and `matlab-test-forward`, `octave-macos`, and `smoke-gl-macos`. They block
-like every other job. The smoke job runs the GPU path on Apple's software
-renderer, which is a GL 2.1 context with GLSL 1.20, the same profile
-Psychtoolbox gets on a Mac.
-
-Artifacts are named `psychlvgl-<engine>-<platform>[-<era>]` and each one holds
-only its own `dist/<arch>` and `dist-sw/<arch>`, plus `m/` (with the XML
-interpreter in `m/private`), `lv_conf.h`, `README.md` and `SPEC.md`. The XML
-fixtures and the demo panel under `tests/xml` are not packaged.
-
-## Regenerating the bindings
-
-`src/psychlvgl_gen.c` (with the `StyleSetProp` property table),
-`src/psychlvgl_enums.c`, `m/PsychLVGL.m`, `m/PsychLVGLOp.m` and
-`tests/test_gen_marshal.m` are generated from the LVGL headers and committed,
-so a normal build needs no Python.
-
-```sh
-uv run --project gen gen/generate.py
-```
-
-`gen/allowlist.toml` chooses the functions. `gen/dropped.txt` lists the
-allowlisted functions whose signatures the marshaling rules of SPEC section
-7.3 cannot express.
-
-Run the generator on the patched LVGL tree. Any CMake configure, or
-`tools/apply_lvgl_patches.sh`, applies the patches; patch 0002 adds the enum
-constant `LV_IMAGE_FLAGS_GL_TEXTURE`, and a run on a pristine tree drops it
-from `src/psychlvgl_enums.c`.
-
 ## Known limits
 
 - One LVGL display per process, bound to one Psychtoolbox window. LVGL 9.6
@@ -443,6 +424,11 @@ from `src/psychlvgl_enums.c`.
   supported.
 - `Shutdown` clears the widget tree and loads a new screen. It does not free
   LVGL itself.
+- Under Octave 10, a change to the load path while the MEX is loaded can crash
+  Octave (SPEC deviation D35). Run `PsychLVGLSetup` before the first
+  `PsychLVGL` call, and do not call `addpath`, `rmpath` or `rehash` after it.
+  `PsychLVGLSetup` itself is safe to call again, because it changes nothing
+  when the path is already right. MATLAB and Octave 6 to 9 are not affected.
 - Style properties that need a pointer argument, such as `bg_image_src` or a
   gradient descriptor, are not bound. See `gen/dropped.txt`.
 - An image from `ImageFromArray` is uploaded to the GPU again every time LVGL
@@ -457,29 +443,42 @@ from `src/psychlvgl_enums.c`.
   arrays cannot be passed (`gen/dropped.txt`).
 - macOS is built and packaged for Apple silicon only. Psychtoolbox gives a
   GL 2.1 compatibility context there, so the build selects
-  `LV_NANOVG_BACKEND_GL2` and applies vendored LVGL patch 0001, described below.
-  The `smoke-gl-macos` job runs that path on Apple's software renderer. The
-  software variant and the whole no-GL suite do not depend on it.
+  `LV_NANOVG_BACKEND_GL2` and applies vendored LVGL patch 0001 (DEV.md,
+  "Vendored LVGL patches"). The `smoke-gl-macos` job runs that path on
+  Apple's software renderer; no accelerated Mac has run it yet.
 
-## Vendored LVGL patches
+## Requirements
 
-`third_party/lvgl` is the unmodified v9.6.0 submodule plus two patches in
-`patches/lvgl`. CMake applies each one at configure time when the checkout
-does not carry it yet, and `tools/apply_lvgl_patches.sh` does the same from a
-shell.
+- Psychtoolbox 3.0.19 or later. 3.0.22 is the version tested.
+- MATLAB R2022b or later on Windows and Linux. R2023b or later on Apple
+  silicon Macs, because that is the first native build. R2023a is verified on
+  Windows.
+- GNU Octave: 10.x on Windows (10.1 verified); 6.4 through 9.x, or 10 and
+  later, on Linux, with the zip for that era; the Homebrew build
+  (`brew install octave`) on Apple silicon Macs.
+- Windows 10 or later, Linux, or macOS 12 or later on Apple silicon
+  (`maca64`). Intel Macs are not built or tested.
+- OpenGL 3.2 or later on Windows and Linux, which is what a Psychtoolbox
+  window gives on a current GPU. On macOS, the OpenGL 2.1 context that
+  Psychtoolbox makes.
+- No compiler. A release zip holds the built MEX files. You need a compiler
+  only to build from the sources ([DEV.md](DEV.md)).
 
-| Patch | What it does | SPEC |
-|---|---|---|
-| `0001-opengles-driver-gl21-glsl120.patch` | Adds a GLSL 1.20 shader path and a luminance texture fallback to LVGL's OpenGL driver. The GL2 build needs it on the OpenGL 2.1 contexts Psychtoolbox creates on macOS; upstream LVGL needs OpenGL 3.0. | D38 |
-| `0002-nanovg-image-from-gl-texture.patch` | Adds the image flags `LV_IMAGE_FLAGS_GL_TEXTURE` and `LV_IMAGE_FLAGS_GL_TEXTURE_TRANSPOSED`, which let an image descriptor name an OpenGL texture stored upright or transposed. The NanoVG draw unit then samples the texture directly. `ImageFromTexture` needs it. | D41 |
+## Where to go next
 
-After a build, `git status` shows `third_party/lvgl` as modified. That is the
-applied patches, not something to commit. To see the pristine tree again, run
-`git -C third_party/lvgl checkout -- .`; the next configure applies the
-patches again.
+- [DEV.md](DEV.md): build from the sources, run the tests, continuous
+  integration, the binding generator, the vendored LVGL patches.
+- [SPEC.md](SPEC.md): the design reference. Read it for the marshaling
+  rules, the handle model, the event model and the list of deviations.
+- [RELEASING.md](RELEASING.md): how a release is made and what each zip
+  holds.
 
-## Releasing
+## License
 
-A release is a `v*` tag; CI builds and publishes the packages. The
-step-by-step checklist, including where the version string lives and how to
-recover from a failed release job, is in [RELEASING.md](RELEASING.md).
+PsychLVGL is MIT licensed; see `LICENSE`.
+
+LVGL and pugixml, which are compiled into the MEX, are MIT licensed; their
+license texts are in `third_party/` of the source repository. The Montserrat
+fonts inside LVGL are under the SIL Open Font License, and the Ubuntu font in
+`examples/` is under the Ubuntu Font Licence 1.0, with its text beside it.
+The LVGL editor has its own license.

@@ -66,7 +66,11 @@ below about 400 KB. If the version bump came with new subcommands, confirm that
   Anything that changed against the specification gets a numbered deviation
   in section 14.
 - `README.md`: new subcommands or helpers appear where their group is
-  described.
+  described. The install steps and the first example must still work
+  with the zip layout below.
+- `DEV.md`: new build options, tests or CI jobs.
+- `PsychLVGLSetup.m`: after a change to `m/PsychLVGLSetup.m`, copy it over
+  the root file. `tests/test_setup.m` fails when the two differ.
 - `lv_conf.h`: any option you changed gets its reason in a comment; the
   software and GPU variants both read it.
 - `third_party/PINS.md`: only if the LVGL submodule or the pugixml clone
@@ -115,13 +119,18 @@ gh release view v0.2.0
 gh release download v0.2.0 --pattern "psychlvgl-matlab-windows.zip" --dir %TEMP%\rel
 ```
 
-Unzip into an empty folder and, in a fresh MATLAB:
+Unzip into an empty folder and follow the install steps of `README.md`
+literally, in a fresh MATLAB:
 
 ```matlab
-addpath('m'); PsychLVGLSetup(); PsychLVGL('Version')
+cd <the folder>
+PsychLVGLSetup
+PsychLVGL('Version')
 ```
 
-The `psychlvgl` field must show the new version. Do the same for one Octave
+The `psychlvgl` field must show the new version, and `build` must be `gl`.
+Then run the first example of `README.md` and, in a new session,
+`PsychLVGLXMLDemo(3)` from the unzipped folder. Do the same for one Octave
 zip when you changed anything Octave specific.
 
 ## What a release contains
@@ -136,19 +145,24 @@ zip when you changed anything Octave specific.
 | `psychlvgl-matlab-macos.zip` | MATLAB R2023b, `macos-latest` | MATLAB R2023b and later on Apple silicon Macs |
 | `psychlvgl-octave-macos.zip` | Homebrew Octave, `macos-latest` | That Octave series on Apple silicon Macs |
 
-Each zip holds `dist/<arch>/` (the GPU build), `dist-sw/<arch>/` (the
-software test build), `m/` (with the XML interpreter in `m/private`),
-`lv_conf.h`, `README.md`, and `SPEC.md`, and is a complete install for that
-engine and platform. Only the GPU build is meant for experiments. The XML
-fixtures and the demo panels under `tests/` are not in the zips, so the two
-demos need a source checkout; `PsychLVGLLoadXML` itself needs nothing from
-`tests/`.
+Each zip holds `PsychLVGLSetup.m` at its root, `dist/<arch>/` (the GPU
+build), `dist-sw/<arch>/` (the software test build), `m/` (with the XML
+interpreter and the demo helpers in `m/private`), `examples/` (the panel of
+`PsychLVGLXMLDemo`, with its font and the font licence),
+`docs/images/psychlvgl-xml-demo.png` (so the README renders from the unzipped
+folder), `lv_conf.h`, `README.md`, `SPEC.md`, and `LICENSE`, and is a complete install
+for that engine and platform. The zip has no top folder, so a user unzips it
+into a folder of their own; `README.md`, "Install", says so. The file list is
+the `path:` list of each upload step in `.github/workflows/ci.yml`; keep the
+four lists the same. Only the GPU build is meant for experiments. Both demos
+run from the zip. The XML fixtures under `tests/` are not in the zips;
+`PsychLVGLLoadXML` itself needs nothing from `tests/`.
 
 The two macOS zips are built on `macos-latest`, which is Apple silicon, so
 they carry `maca64` only. Intel Macs are not covered: no runner builds
 `maci64`, and nothing on that architecture has been tested. The macOS jobs
 block the release like every other job. The GPU path on macOS depends on the
-vendored LVGL patch 0001 (`README.md`, "Vendored LVGL patches"); CI runs it on
+vendored LVGL patch 0001 (`DEV.md`, "Vendored LVGL patches"); CI runs it on
 Apple's software renderer, and no accelerated Mac has run it yet, so say so
 when you announce a macOS build.
 
@@ -179,4 +193,4 @@ that tag has been downloaded by anyone. Bump the patch number instead.
   to end test.
 - The Octave 6.4 Docker job is slow when reproduced locally over a Windows
   bind mount (its CMake 3.16 dependency scanner). Copy the tree into the
-  container first; see `README.md`.
+  container first; see `DEV.md`, "Check Linux from Windows".

@@ -382,8 +382,8 @@ function varargout = PsychLVGL(varargin) %#ok<STOUT,INUSD>
 %   subcommands, for example 'bg_color' or 'text_font', and the same value.
 %   Font arguments take a built-in name from FontList or a FontLoad handle.
 %
-%   See SPEC.md for the marshaling rules and README.md for the build.
+%   See SPEC.md for the marshaling rules and DEV.md for the build.
 
 error('psychlvgl:NotBuilt', ...
-      'The PsychLVGL MEX is not built. Run build, then PsychLVGLSetup.');
+      'The PsychLVGL MEX is not on the path. Run PsychLVGLSetup; in a source checkout, run build first.');
 end

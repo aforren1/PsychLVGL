@@ -1,0 +1,9 @@
+Ubuntu-Medium.ttf is the Ubuntu font, copyright 2010, 2011 Canonical Ltd.,
+licensed under the Ubuntu Font Licence 1.0. UFL.txt in this folder is the
+licence text. The font is a copy of
+third_party/lvgl/examples/libs/tiny_ttf/Ubuntu-Medium.ttf (LVGL v9.6.0), and
+UFL.txt is a copy of
+third_party/lvgl/scripts/generators/built_in_font/font_license/UbuntuMedium/UFL.txt.
+
+This folder ships in the release packages, because PsychLVGLXMLDemo loads its
+panel from it. The tests keep their own copy in tests/xml/fonts.

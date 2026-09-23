@@ -106,9 +106,13 @@ jobs:
           path: |
             dist/${{ matrix.arch }}
             dist-sw/${{ matrix.arch }}
+            PsychLVGLSetup.m
             m
+            examples
+            docs/images/psychlvgl-xml-demo.png
             lv_conf.h
             README.md
+            LICENSE
             SPEC.md
           if-no-files-found: error
 
@@ -187,9 +191,13 @@ jobs:
           path: |
             dist/glnxa64
             dist-sw/glnxa64
+            PsychLVGLSetup.m
             m
+            examples
+            docs/images/psychlvgl-xml-demo.png
             lv_conf.h
             README.md
+            LICENSE
             SPEC.md
           if-no-files-found: error
 
@@ -282,9 +290,13 @@ jobs:
           path: |
             dist/win64
             dist-sw/win64
+            PsychLVGLSetup.m
             m
+            examples
+            docs/images/psychlvgl-xml-demo.png
             lv_conf.h
             README.md
+            LICENSE
             SPEC.md
           if-no-files-found: error
 
@@ -336,9 +348,13 @@ jobs:
           path: |
             dist/maca64
             dist-sw/maca64
+            PsychLVGLSetup.m
             m
+            examples
+            docs/images/psychlvgl-xml-demo.png
             lv_conf.h
             README.md
+            LICENSE
             SPEC.md
           if-no-files-found: error
 

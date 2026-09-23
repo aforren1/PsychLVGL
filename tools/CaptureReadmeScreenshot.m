@@ -1,7 +1,7 @@
 function file = CaptureReadmeScreenshot(file)
 % CAPTUREREADMESCREENSHOT  Regenerates docs/images/psychlvgl-xml-demo.png.
 %   CaptureReadmeScreenshot() runs PsychLVGLXMLDemo in its scripted mode in a
-%   1280x720 window: the panel from tests/xml/demo/gabor_panel.xml over a
+%   1280x720 window: the panel from examples/xml/gabor_panel/gabor_panel.xml over a
 %   drifting Gabor, with the contrast swept for a few seconds so the chart,
 %   the arc and the tiles show values. It saves the last frame with
 %   Screen('GetImage') and closes the window.
@@ -18,6 +18,8 @@ function file = CaptureReadmeScreenshot(file)
     if nargin < 1 || isempty(file)
         file = fullfile(root, 'docs', 'images', 'psychlvgl-xml-demo.png');
     end
+    % A source tree tool, run in a fresh session before the MEX is loaded, so
+    % this addpath is safe. The shipped demos themselves never change the path.
     addpath(fullfile(root, 'm'));
     PsychLVGLXMLDemo([], file);
 end

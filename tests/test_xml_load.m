@@ -183,7 +183,10 @@ function test_xml_load()
 
     % ------------------------------------ the panel of PsychLVGLXMLDemo
     plv_xml_collect('reset');
-    [~, nd] = PsychLVGLLoadXML(fullfile(fx, 'demo', 'gabor_panel.xml'), PsychLVGL('ScreenCreate'), opts);
+    % The demo panel ships in examples/, not tests/, because the demo loads it
+    % from a release package.
+    demoXml = fullfile(fileparts(fileparts(fx)), 'examples', 'xml', 'gabor_panel', 'gabor_panel.xml');
+    [~, nd] = PsychLVGLLoadXML(demoXml, PsychLVGL('ScreenCreate'), opts);
     w = plv_xml_collect('get');
     plv_eq('the demo panel loads without a warning', numel(w), 0);
     for k = 1:numel(w)

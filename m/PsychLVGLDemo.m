@@ -20,12 +20,10 @@ function PsychLVGLDemo(seconds)
         seconds = Inf;
     end
 
-    % Both path entries go on before the first call into the MEX. The demo
-    % opens its window through the same helper as the GL tests, which is the
-    % one place that sets SkipSyncTests and VisualDebugLevel. Those two
-    % preferences suit a demo, never a real session.
-    root = fileparts(fileparts(mfilename('fullpath')));
-    addpath(fullfile(root, 'tests', 'gl'));
+    % The window helper is in m/private, so the demo runs from a release
+    % package and never changes the path while the MEX may be loaded (SPEC
+    % D35). It sets SkipSyncTests and VisualDebugLevel. Those two preferences
+    % suit a demo, never a real session.
     PsychLVGLSetup();
 
     panelW = 380;
@@ -35,16 +33,16 @@ function PsychLVGLDemo(seconds)
     % PsychImaging opens afterwards the normalized 0 to 1 colour range, which
     % is what the 0.5 gray background and the Gabor colour offset assume. It
     % is also what every Psychtoolbox demo does. The GL tests keep the default
-    % range, so this belongs here rather than in ptb_test_window.
+    % range, so this belongs here rather than in psychlvgl_demo_window.
     PsychDefaultSetup(2);
 
-    [win, winRect] = ptb_test_window([0 0 900 700], 0.5);
+    [win, winRect] = psychlvgl_demo_window([0 0 900 700], 0.5);
 
     dst = [20, 20, 20 + panelW, 20 + panelH];
     ui = PsychLVGLOpen(win, panelW, panelH, dst);
     % One cleanup, so the panel always closes before the window. Two separate
     % onCleanup objects run in an order the engine chooses.
-    closer = onCleanup(@() plv_demo_close(ui)); %#ok<NASGU>
+    closer = onCleanup(@() plv_demo_close(ui, false)); %#ok<NASGU>
 
     % --- build the panel once ---
     scr = PsychLVGL('ScreenActive');
@@ -148,8 +146,8 @@ function PsychLVGLDemo(seconds)
             % A Gaussian envelope leaves most of the box flat, so the pixel
             % standard deviation of a correct patch is small: measured 0.0501
             % here at contrast 0.6, against 0.0021 for the broken version.
-            [sd, img] = gabor_std(win, gaborRect);
-            mc = gabor_michelson(img);
+            [sd, img] = psychlvgl_gabor_std(win, gaborRect);
+            mc = psychlvgl_gabor_michelson(img);
             fprintf('gabor check: pixel std %.4f, central Michelson %.3f\n', sd, mc);
             if sd < 0.02
                 error('psychlvgl:GaborFlat', ...
@@ -177,7 +175,16 @@ function PsychLVGLDemo(seconds)
     end
 end
 
-function plv_demo_close(ui)
+function plv_demo_close(ui, closeWindow)
+% The panel closes, the window stays. LVGL builds its NanoVG renderer once
+% per process, so a second window, which is a second OpenGL context, cannot
+% show a panel (README, "Known limits"). Keeping the window lets the demo run
+% again in the same session on the same context.
     PsychLVGLClose(ui);
-    ptb_test_window_close();
+    if closeWindow
+        psychlvgl_demo_window_close();
+    else
+        fprintf('The demo window stays open, so the demo can run again in this session.\n');
+        fprintf('sca closes it; after that, a panel needs a new session.\n');
+    end
 end

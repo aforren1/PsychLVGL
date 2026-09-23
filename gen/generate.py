@@ -786,10 +786,10 @@ def emit_help_m(funcs, path):
     lines.append("%   subcommands, for example 'bg_color' or 'text_font', and the same value.")
     lines.append("%   Font arguments take a built-in name from FontList or a FontLoad handle.")
     lines.append("%")
-    lines.append("%   See SPEC.md for the marshaling rules and README.md for the build.")
+    lines.append("%   See SPEC.md for the marshaling rules and DEV.md for the build.")
     lines.append("")
     lines.append("error('psychlvgl:NotBuilt', ...")
-    lines.append("      'The PsychLVGL MEX is not built. Run build, then PsychLVGLSetup.');")
+    lines.append("      'The PsychLVGL MEX is not on the path. Run PsychLVGLSetup; in a source checkout, run build first.');")
     lines.append("end")
     lines.append("")
     with open(path, "w", encoding="utf-8", newline="\n") as fh:

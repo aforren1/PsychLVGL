@@ -66,7 +66,9 @@ Expect `0 failed` and `DEMO_OK` with a printed Gabor standard deviation above
   version also means rerunning `build gen`, reviewing `gen/dropped.txt` for
   functions that no longer exist, and re-checking the four LVGL behaviors
   recorded as deviations D1 to D5, because they concern the experimental
-  OpenGL driver.
+  OpenGL driver. Both patches in `patches/lvgl` must still apply, and the
+  private LVGL structs that D46 names must still have the fields
+  `src/core/plv_assets.c` reads.
 
 ## 4. Push and wait for green
 
@@ -131,7 +133,7 @@ The two macOS zips are built on `macos-latest`, which is Apple silicon, so
 they carry `maca64` only. Intel Macs are not covered: no runner builds
 `maci64`, and nothing on that architecture has been tested. The macOS jobs
 block the release like every other job. The GPU path on macOS depends on the
-vendored LVGL patch (`README.md`, "Vendored LVGL patch"); CI runs it on
+vendored LVGL patch 0001 (`README.md`, "Vendored LVGL patches"); CI runs it on
 Apple's software renderer, and no accelerated Mac has run it yet, so say so
 when you announce a macOS build.
 

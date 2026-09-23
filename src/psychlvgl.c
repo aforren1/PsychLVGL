@@ -257,6 +257,19 @@ static void op_RemoveFromGroup(int nlhs, mxArray * plhs[], int nrhs, const mxArr
 static void op_FocusObj(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
 static void op_EventName(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
 static void op_FrameChecksum(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_StyleCreate(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_StyleDelete(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_StyleSetProp(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ObjAddStyle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ObjRemoveStyle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ObjRemoveStyleAll(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ImageFromTexture(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ImageFromArray(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ImageDelete(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_FontLoad(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_FontDelete(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ChartSetValues(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ChartGetValues(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
 
 /* The order here fixes the opcodes, and m/PsychLVGLOp.m repeats it. */
 static const plv_op_entry_t plv_hand_ops[] = {
@@ -282,7 +295,20 @@ static const plv_op_entry_t plv_hand_ops[] = {
     { "RemoveFromGroup", op_RemoveFromGroup },
     { "FocusObj",        op_FocusObj },
     { "EventName",       op_EventName },
-    { "FrameChecksum",   op_FrameChecksum }
+    { "FrameChecksum",   op_FrameChecksum },
+    { "StyleCreate",     op_StyleCreate },
+    { "StyleDelete",     op_StyleDelete },
+    { "StyleSetProp",    op_StyleSetProp },
+    { "ObjAddStyle",     op_ObjAddStyle },
+    { "ObjRemoveStyle",  op_ObjRemoveStyle },
+    { "ObjRemoveStyleAll", op_ObjRemoveStyleAll },
+    { "ImageFromTexture", op_ImageFromTexture },
+    { "ImageFromArray",  op_ImageFromArray },
+    { "ImageDelete",     op_ImageDelete },
+    { "FontLoad",        op_FontLoad },
+    { "FontDelete",      op_FontDelete },
+    { "ChartSetValues",  op_ChartSetValues },
+    { "ChartGetValues",  op_ChartGetValues }
 };
 
 #define PLV_HAND_COUNT ((int)(sizeof(plv_hand_ops) / sizeof(plv_hand_ops[0])))
@@ -489,7 +515,9 @@ static void op_IsValid(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prh
     if(nrhs != 2) mexErrMsgIdAndTxt("psychlvgl:Usage", "Usage: tf = PsychLVGL('IsValid', h)");
     plv_need_init("IsValid");
     h = plv_arg_double(prhs[1], 1);
-    plhs[0] = mxCreateLogicalScalar(plv_handle_is_valid(h) ? 1 : 0);
+    /* One call for both tables: the two handle ranges cannot overlap. */
+    plhs[0] = mxCreateLogicalScalar((plv_handle_is_valid(h) || plv_res_kind(h) != PLV_RES_NONE)
+                                    ? 1 : 0);
 }
 
 static double plv_event_code_from_name(const mxArray * a, int pos)
@@ -582,6 +610,268 @@ static void op_FrameChecksum(int nlhs, mxArray * plhs[], int nrhs, const mxArray
     (void)nlhs; (void)nrhs; (void)prhs;
     plv_need_init("FrameChecksum");
     plhs[0] = mxCreateDoubleScalar((double)plv_frame_checksum());
+}
+
+/* ------------------------------------------------------------------ styles */
+
+static void op_StyleCreate(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_err_t err;
+    double h;
+    (void)nlhs; (void)prhs;
+    plv_need_args(nrhs, 0, 0, "StyleCreate");
+    h = plv_style_create(&err);
+    if(h == 0.0) plv_raise(&err);
+    plhs[0] = mxCreateDoubleScalar(h);
+}
+
+static void op_StyleDelete(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_err_t err;
+    (void)nlhs; (void)plhs;
+    plv_need_args(nrhs, 1, 1, "StyleDelete");
+    if(plv_style_delete(plv_arg_res_handle(prhs[1], 1), &err)) plv_raise(&err);
+}
+
+static void op_StyleSetProp(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    char name[64];
+    lv_style_t * s;
+    plv_style_setter_t fn;
+
+    (void)nlhs; (void)plhs;
+    plv_need_args(nrhs, 3, 3, "StyleSetProp");
+    s = plv_arg_style(prhs[1], 1);
+    if(!mxIsChar(prhs[2]) || mxGetString(prhs[2], name, sizeof(name)) != 0)
+        mexErrMsgIdAndTxt("psychlvgl:Type",
+                          "argument 2 must be a style property name such as 'bg_color'");
+    fn = plv_style_prop_lookup(name);
+    if(!fn)
+        mexErrMsgIdAndTxt("psychlvgl:Enum",
+                          "unknown style property '%s'; the names are those of the "
+                          "ObjSetStyle<Prop> subcommands, for example 'bg_color'", name);
+    fn(s, prhs[3], 3);
+    /* Objects cache what their styles resolve to, so a style already in use
+     * has to announce the change. */
+    lv_obj_report_style_change(s);
+    plv_check_deferred();
+}
+
+static lv_style_selector_t plv_selector_arg(int nrhs, const mxArray * prhs[], int pos,
+                                            lv_style_selector_t dflt)
+{
+    if(nrhs <= pos) return dflt;
+    return (lv_style_selector_t)plv_arg_enum(prhs[pos], pos);
+}
+
+static void op_ObjAddStyle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_obj_t * obj;
+    lv_style_t * s;
+    (void)nlhs; (void)plhs;
+    plv_need_args(nrhs, 2, 3, "ObjAddStyle");
+    obj = plv_arg_obj(prhs[1], 1);
+    s = plv_arg_style(prhs[2], 2);
+    lv_obj_add_style(obj, s, plv_selector_arg(nrhs, prhs, 3, LV_PART_MAIN));
+    plv_check_deferred();
+}
+
+static void op_ObjRemoveStyle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_obj_t * obj;
+    const lv_style_t * s = NULL;
+    (void)nlhs; (void)plhs;
+    plv_need_args(nrhs, 2, 3, "ObjRemoveStyle");
+    obj = plv_arg_obj(prhs[1], 1);
+    /* Style 0 means every style that matches the selector, as in LVGL. */
+    if(!(mxIsDouble(prhs[2]) && mxGetNumberOfElements(prhs[2]) == 1 && mxGetScalar(prhs[2]) == 0.0))
+        s = plv_arg_style(prhs[2], 2);
+    /* Without a selector every entry of the style goes, whatever part and
+     * state it was added for, which is what a script usually means. */
+    lv_obj_remove_style(obj, s, plv_selector_arg(nrhs, prhs, 3,
+                                                 (lv_style_selector_t)LV_PART_ANY | LV_STATE_ANY));
+    plv_check_deferred();
+}
+
+static void op_ObjRemoveStyleAll(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    (void)nlhs; (void)plhs;
+    plv_need_args(nrhs, 1, 1, "ObjRemoveStyleAll");
+    lv_obj_remove_style_all(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+}
+
+/* ------------------------------------------------------------------ images */
+
+static void op_ImageFromTexture(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_err_t err;
+    double h;
+    uint32_t tex;
+    int32_t w, hh;
+    (void)nlhs;
+    plv_need_args(nrhs, 3, 3, "ImageFromTexture");
+    tex = (uint32_t)plv_arg_int(prhs[1], 1, 1, 4294967295.0);
+    w   = (int32_t)plv_arg_int(prhs[2], 2, 1, PLV_IMAGE_MAX_SIDE);
+    hh  = (int32_t)plv_arg_int(prhs[3], 3, 1, PLV_IMAGE_MAX_SIDE);
+    h = plv_image_from_texture(tex, w, hh, &err);
+    if(h == 0.0) plv_raise(&err);
+    plhs[0] = mxCreateDoubleScalar(h);
+}
+
+static void op_ImageFromArray(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_err_t err;
+    const mxArray * a;
+    const mwSize * dims;
+    mwSize nd;
+    size_t rows, cols, planes, r, c, plane;
+    const uint8_t * src;
+    uint8_t * dst = NULL;
+    double h;
+
+    (void)nlhs;
+    plv_need_args(nrhs, 1, 1, "ImageFromArray");
+    a = prhs[1];
+    if(!mxIsUint8(a) || mxIsComplex(a))
+        mexErrMsgIdAndTxt("psychlvgl:Type",
+                          "argument 1 must be a uint8 image, HxW, HxWx3 or HxWx4");
+    nd   = mxGetNumberOfDimensions(a);
+    dims = mxGetDimensions(a);
+    rows = dims[0];
+    cols = dims[1];
+    planes = (nd >= 3) ? dims[2] : 1;
+    if(nd > 3 || !(planes == 1 || planes == 3 || planes == 4))
+        mexErrMsgIdAndTxt("psychlvgl:Type",
+                          "argument 1 must be a uint8 image, HxW, HxWx3 or HxWx4");
+
+    if(rows > PLV_IMAGE_MAX_SIDE || cols > PLV_IMAGE_MAX_SIDE || rows == 0 || cols == 0)
+        mexErrMsgIdAndTxt("psychlvgl:Range", "image size %ux%u is outside 1 to %d",
+                          (unsigned)cols, (unsigned)rows, PLV_IMAGE_MAX_SIDE);
+    /* Width is the column count. */
+    h = plv_image_create_argb((int32_t)cols, (int32_t)rows, &dst, &err);
+    if(h == 0.0) plv_raise(&err);
+
+    /* MATLAB stores columns, LVGL rows of B, G, R, A. */
+    src = (const uint8_t *)mxGetData(a);
+    plane = rows * cols;
+    for(c = 0; c < cols; c++) {
+        for(r = 0; r < rows; r++) {
+            size_t si = r + c * rows;
+            uint8_t * px = dst + (r * cols + c) * 4u;
+            if(planes == 1) {
+                px[0] = px[1] = px[2] = src[si];
+                px[3] = 255;
+            }
+            else {
+                px[2] = src[si];
+                px[1] = src[si + plane];
+                px[0] = src[si + 2 * plane];
+                px[3] = (planes == 4) ? src[si + 3 * plane] : 255;
+            }
+        }
+    }
+    plhs[0] = mxCreateDoubleScalar(h);
+}
+
+static void op_ImageDelete(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_err_t err;
+    (void)nlhs; (void)plhs;
+    plv_need_args(nrhs, 1, 1, "ImageDelete");
+    if(plv_image_delete(plv_arg_res_handle(prhs[1], 1), &err)) plv_raise(&err);
+}
+
+/* ------------------------------------------------------------------- fonts */
+
+static void op_FontLoad(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_err_t err;
+    plv_strbuf_t buf;
+    const char * path;
+    int32_t px;
+    double h;
+
+    (void)nlhs;
+    plv_need_args(nrhs, 2, 2, "FontLoad");
+    px   = (int32_t)plv_arg_int(prhs[2], 2, 1, PLV_FONT_MAX_PX);
+    path = plv_arg_str(prhs[1], 1, &buf);
+    h = plv_font_load(path, px, &err);
+    plv_strbuf_free(&buf);
+    if(h == 0.0) plv_raise(&err);
+    plhs[0] = mxCreateDoubleScalar(h);
+}
+
+static void op_FontDelete(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_err_t err;
+    (void)nlhs; (void)plhs;
+    plv_need_args(nrhs, 1, 1, "FontDelete");
+    if(plv_font_delete(plv_arg_res_handle(prhs[1], 1), &err)) plv_raise(&err);
+}
+
+/* ------------------------------------------------------------------ charts */
+
+static void op_ChartSetValues(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_i32vec_t vb;
+    lv_obj_t * chart;
+    lv_chart_series_t * ser;
+    const int32_t * v;
+    int32_t * y;
+    uint32_t n, i;
+
+    (void)nlhs; (void)plhs;
+    plv_need_args(nrhs, 3, 3, "ChartSetValues");
+    chart = plv_arg_obj(prhs[1], 1);
+    ser   = plv_arg_series(prhs, 2, 1);
+    /* NaN is a gap in the plot, which LVGL spells LV_CHART_POINT_NONE. */
+    v = plv_arg_i32vec(prhs[3], 3, &vb, 1, LV_CHART_POINT_NONE);
+    n = lv_chart_get_point_count(chart);
+    if(vb.n > n) {
+        plv_i32vec_free(&vb);
+        mexErrMsgIdAndTxt("psychlvgl:Range",
+                          "argument 3 has %u values but the chart has %u points; "
+                          "call ChartSetPointCount first", (unsigned)vb.n, (unsigned)n);
+    }
+    /* Copied into the array the chart owns, never aliased: LVGL keeps using
+     * the array after this call returns, and MATLAB may free or move the
+     * argument at any time. */
+    y = lv_chart_get_series_y_array(chart, ser);
+    for(i = 0; i < (uint32_t)vb.n; i++) y[i] = v[i];
+    for(; i < n; i++) y[i] = LV_CHART_POINT_NONE;
+    plv_i32vec_free(&vb);
+    lv_chart_set_x_start_point(chart, ser, 0);
+    lv_chart_refresh(chart);
+    plv_check_deferred();
+}
+
+static void op_ChartGetValues(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_obj_t * chart;
+    lv_chart_series_t * ser;
+    const int32_t * y;
+    uint32_t n, i, start = 0;
+    mxArray * out;
+    double * p;
+
+    (void)nlhs;
+    plv_need_args(nrhs, 2, 2, "ChartGetValues");
+    chart = plv_arg_obj(prhs[1], 1);
+    ser   = plv_arg_series(prhs, 2, 1);
+    n = lv_chart_get_point_count(chart);
+    y = lv_chart_get_series_y_array(chart, ser);
+    /* In shift mode the plot starts at the series' start point; in circular
+     * mode it is the array as stored. The result is the order on screen. */
+    if(lv_chart_get_update_mode(chart) == LV_CHART_UPDATE_MODE_SHIFT)
+        start = lv_chart_get_x_start_point(chart, ser);
+    out = mxCreateDoubleMatrix(1, (mwSize)n, mxREAL);
+    p = mxGetPr(out);
+    for(i = 0; i < n; i++) {
+        int32_t v = y[(start + i) % n];
+        p[i] = (v == LV_CHART_POINT_NONE) ? mxGetNaN() : (double)v;
+    }
+    plhs[0] = out;
 }
 
 /* --------------------------------------------------------------- mexFunction */

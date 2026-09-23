@@ -25,9 +25,25 @@ extern "C" {
 #define PLV_DEFAULT_MAX_OBJECTS 4096
 #define PLV_DEFAULT_QUEUE_CAP  1024
 #define PLV_MAX_OBJECTS_LIMIT  65535
+#define PLV_MAX_RESOURCES      4096
+#define PLV_IMAGE_MAX_SIDE     16383
+#define PLV_FONT_MAX_PX        1000
 
 /* Handle layout: gen * 65536 + idx, idx in 1..65535, 0 is the null handle. */
 #define PLV_HANDLE_SHIFT 65536.0
+
+/* Kinds of the resource handle table. A resource handle is
+ * ((kind * 65536 + gen) * 65536 + idx), so it is never below 2^32 and can
+ * never equal an object handle. */
+typedef enum {
+    PLV_RES_NONE   = 0,
+    PLV_RES_SERIES = 1,
+    PLV_RES_CURSOR = 2,
+    PLV_RES_STYLE  = 3,
+    PLV_RES_IMAGE  = 4,
+    PLV_RES_FONT   = 5,
+    PLV_RES_KIND_COUNT
+} plv_res_kind_t;
 
 typedef struct {
     char id[PLV_ERR_ID_MAX];
@@ -130,6 +146,32 @@ int        plv_handle_is_valid(double handle);
 uint32_t   plv_handle_live_count(void);
 int        plv_handle_event_subscribed(double handle, uint32_t code);
 int        plv_handle_set_event_bit(double handle, uint32_t code, int on, plv_err_t * err);
+
+/* ---- resource handles: series, cursors, styles, images, fonts ---- */
+/* owner is the chart for series and cursors, NULL otherwise. Deleting the
+ * owner releases every handle it owns. */
+double         plv_res_register(plv_res_kind_t kind, void * ptr, void * owner, plv_err_t * err);
+void *         plv_res_resolve(double handle, plv_res_kind_t kind, plv_err_t * err);
+void *         plv_res_owner(double handle);
+plv_res_kind_t plv_res_kind(double handle);   /* PLV_RES_NONE when not live */
+void           plv_res_release(double handle);
+const char *   plv_res_kind_name(plv_res_kind_t kind);
+
+double            plv_style_create(plv_err_t * err);
+int               plv_style_delete(double handle, plv_err_t * err);
+uint32_t          plv_style_use_count(const lv_style_t * style);
+
+double            plv_image_from_texture(uint32_t texture, int32_t w, int32_t h, plv_err_t * err);
+/* The caller fills *out_pixels, w * h ARGB8888 pixels in LVGL byte order
+ * (B, G, R, A), before anything draws the image. */
+double            plv_image_create_argb(int32_t w, int32_t h, uint8_t ** out_pixels, plv_err_t * err);
+int               plv_image_delete(double handle, plv_err_t * err);
+uint32_t          plv_image_use_count(const void * src);
+
+double            plv_font_load(const char * path_utf8, int32_t px, plv_err_t * err);
+int               plv_font_delete(double handle, plv_err_t * err);
+uint32_t          plv_font_use_count(const lv_font_t * font);
+const lv_font_t * plv_font_resolve(double handle, plv_err_t * err);
 
 /* ---- events ---- */
 uint32_t plv_events_available(void);

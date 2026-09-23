@@ -93,6 +93,10 @@ static int32_t plv_value_of(lv_obj_t * obj)
     if(lv_obj_check_type(obj, &lv_switch_class))
         return lv_obj_has_state(obj, LV_STATE_CHECKED) ? 1 : 0;
 #endif
+#if LV_USE_CHART
+    /* A chart reports VALUE_CHANGED when a point is pressed. */
+    if(lv_obj_check_type(obj, &lv_chart_class))    return (int32_t)lv_chart_get_pressed_point(obj);
+#endif
     return 0;
 }
 
@@ -105,6 +109,13 @@ void plv_on_event(lv_event_t * e)
 
     if(code == LV_EVENT_DELETE) {
         plv_handle_release_obj(target);
+#if LV_USE_CHART
+        /* A chart frees its series and cursors with itself, so their handles
+         * go stale here too. Only charts own resources, and the type check
+         * keeps a Shutdown of thousands of objects from scanning the
+         * resource table once per object. */
+        if(lv_obj_check_type(target, &lv_chart_class)) plv_res_release_owned_by(target);
+#endif
         return;
     }
 

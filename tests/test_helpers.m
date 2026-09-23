@@ -104,6 +104,26 @@ function test_helpers()
                @() PsychLVGLGL(ui, 'ObjGetWidth', 0));
     plv_eq('the failed call still left 2D mode', Screen('stubDrawMode'), 0);
 
+    % --- PsychLVGLImageFromTexture ------------------------------------------
+    Screen('stubReset');
+    Screen('stubSetTexture', 3553, 0.975, [0 0 32 16]);
+    img = PsychLVGLImageFromTexture(ui.win, 900);
+    plv_assert('ImageFromTexture returns an image handle', PsychLVGL('IsValid', img));
+    obj = PsychLVGL('ImageCreate', PsychLVGL('ScreenActive'));
+    PsychLVGL('ImageSetSrc', obj, img);
+    plv_eq('the image has the texture width', PsychLVGL('ImageGetSrcWidth', obj), 32);
+    plv_eq('the image has the texture height', PsychLVGL('ImageGetSrcHeight', obj), 16);
+    plv_eq('the helper touched no OpenGL mode', Screen('stubBeginDepth'), 0);
+    Screen('stubSetTexture', hex2dec('84F5'), 0.975, [0 0 32 16]);
+    plv_throws('a rectangle texture is refused', 'psychlvgl:Texture', ...
+               @() PsychLVGLImageFromTexture(ui.win, 900));
+    Screen('stubSetTexture', 3553, -0.017, [0 0 32 16]);
+    plv_throws('a transposed texture is refused', 'psychlvgl:Texture', ...
+               @() PsychLVGLImageFromTexture(ui.win, 900));
+    plv_throws('the helper takes two arguments', 'psychlvgl:Usage', ...
+               @() PsychLVGLImageFromTexture(ui.win));
+    Screen('stubSetTexture', 3553, 0.975, [0 0 32 16]);
+
     % --- Close ------------------------------------------------------------
     Screen('stubReset');
     PsychLVGLClose(ui);

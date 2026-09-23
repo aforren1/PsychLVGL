@@ -13,8 +13,10 @@ function varargout = Screen(cmd, varargin)
 %     m = Screen('stubDrawMode')     0 for 2D, 1 for userspace OpenGL
 %     n = Screen('stubBeginDepth')   how deep BeginOpenGL is nested
 %     t = Screen('stubClosedTextures')  handles passed to Screen('Close')
+%     Screen('stubSetTexture', target, v0, rect)  what GetOpenGLTexture and
+%                                    Rect answer for texture handle 900
 
-    persistent log enable3d drawmode dead nexttex begindepth closedtex
+    persistent log enable3d drawmode dead nexttex begindepth closedtex ogl
 
     if isempty(enable3d);   enable3d = 1;   end
     if isempty(drawmode);   drawmode = 0;   end
@@ -23,6 +25,9 @@ function varargout = Screen(cmd, varargin)
     if isempty(begindepth); begindepth = 0; end
     if isempty(log);        log = {};       end
     if isempty(closedtex);  closedtex = []; end
+    if isempty(ogl)
+        ogl = struct('target', 3553, 'v0', 0.975, 'rect', [0 0 32 16]);
+    end
 
     switch cmd
         case 'stubReset'
@@ -48,6 +53,9 @@ function varargout = Screen(cmd, varargin)
             return;
         case 'stubClosedTextures'
             varargout{1} = closedtex;
+            return;
+        case 'stubSetTexture'
+            ogl = struct('target', varargin{1}, 'v0', varargin{2}, 'rect', varargin{3});
             return;
     end
 
@@ -103,7 +111,24 @@ function varargout = Screen(cmd, varargin)
 
         case 'Rect'
             plv_check_window(dead);
-            varargout{1} = [0 0 640 480];
+            if numel(varargin) >= 1 && varargin{1} == 900
+                varargout{1} = ogl.rect;
+            else
+                varargout{1} = [0 0 640 480];
+            end
+
+        case 'GetOpenGLTexture'
+            % [glTex, target, u, v]; with (x, y) the v of that texel, which is
+            % what tells an upright texture from a transposed one.
+            plv_check_window(dead);
+            varargout{1} = 77;
+            varargout{2} = ogl.target;
+            varargout{3} = 1;
+            if numel(varargin) >= 4
+                varargout{4} = ogl.v0;
+            else
+                varargout{4} = 0;
+            end
 
         case 'WindowSize'
             plv_check_window(dead);

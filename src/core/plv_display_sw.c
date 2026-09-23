@@ -83,6 +83,10 @@ void plv_display_flush_cb(lv_display_t * disp, const lv_area_t * area, uint8_t *
     lv_display_flush_ready(disp);
 }
 
+/* No GPU, so nothing to time; gpuNs stays 0. */
+void plv_display_gpu_begin(void) { }
+void plv_display_gpu_end(void)   { }
+
 const char * plv_gl_version_string(void)  { return "none"; }
 const char * plv_gl_renderer_string(void) { return "software"; }
 

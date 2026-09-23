@@ -12,8 +12,10 @@ Pipeline
 4. Keep the functions named in ``allowlist.toml`` plus every
    ``lv_obj_set_style_*`` setter, and drop whatever the SPEC 7.3 marshaling
    rules cannot express.
-5. Emit the C handlers, the enum table, the help text, the opcode struct, and
-   the generated marshaling test.
+5. Emit the C handlers, the StyleSetProp property table (one entry per
+   ``lv_style_set_<prop>`` that matches a kept ``lv_obj_set_style_<prop>``),
+   the enum table, the help text, the opcode struct, and the generated
+   marshaling test.
 
 SPEC 7.1 calls for ``scripts/gen_json/gen_json.py`` here. See the deviations
 section of SPEC.md for why this file preprocesses the headers itself.
@@ -80,7 +82,8 @@ class Arg(object):
     def __init__(self, name, kind, ctype, base=None):
         self.name = name
         self.kind = kind        # obj, int, float, bool, str, color, opa,
-                                # enum, selector, font, out_u32, out_i32
+                                # enum, selector, font, series, cursor,
+                                # imgsrc, i32vec, out_u32, out_i32
         self.ctype = ctype
         self.base = base        # underlying integer spelling for enum/int
 
@@ -272,7 +275,24 @@ def classify_arg(collector, name, node, cname):
         return Arg(name, "out_str", "char *")
     if depth == 1 and base == "lv_font_t":
         return Arg(name, "font", "const lv_font_t *")
+    # Series and cursors live in the resource table, keyed by their chart.
+    if depth == 1 and base == "lv_chart_series_t":
+        return Arg(name, "series", "lv_chart_series_t *")
+    if depth == 1 and base == "lv_chart_cursor_t":
+        return Arg(name, "cursor", "lv_chart_cursor_t *")
+    # The image source of lv_image_set_src: an ImageFromTexture or
+    # ImageFromArray handle. Other void pointers stay refused.
+    if depth == 1 and base == "void" and is_const and name == "src":
+        return Arg(name, "imgsrc", "const void *")
+    # An input int32 array; build_funcs pairs it with the count after it.
+    if depth == 1 and base == "int32_t" and is_const:
+        return Arg(name, "i32vec", "const int32_t *", "int32_t")
     if depth == 1 and base in ("uint32_t", "int32_t", "uint16_t", "int16_t"):
+        # An array parameter is never an output scalar: a writable one such as
+        # lv_chart_set_series_ext_y_array keeps the caller's memory, which a
+        # MATLAB argument cannot outlive.
+        if isinstance(node, c_ast.ArrayDecl):
+            return None
         # An output pointer to a scalar, as in lv_table_get_selected_cell.
         if not is_const:
             return Arg(name, "out_" + base, base + " *", base)
@@ -318,6 +338,10 @@ def classify_ret(collector, node):
         return "obj", "lv_obj_t *"
     if depth == 1 and base == "char":
         return "str", "const char *"
+    if depth == 1 and base == "lv_chart_series_t":
+        return "series", "lv_chart_series_t *"
+    if depth == 1 and base == "lv_chart_cursor_t":
+        return "cursor", "lv_chart_cursor_t *"
     if depth:
         return None, None
     if base == "void":
@@ -379,6 +403,15 @@ def build_funcs(collector, wanted, rules, dropped):
                     bad = "output buffer %s without a size argument" % p.name
                     break
                 i += 1          # the size argument is supplied by the handler
+            if a.kind == "i32vec":
+                nxt = params[i + 1] if i + 1 < len(params) else None
+                nb, nd, _ = spell(nxt.type) if nxt is not None else ("", 1, False)
+                nname = (nxt.name or "") if nxt is not None else ""
+                if nd != 0 or nb not in ("size_t", "uint32_t") or not re.search(
+                        r"(cnt|count|len|num|size)$", nname):
+                    bad = "argument %s of type int32_t * without a count argument" % p.name
+                    break
+                i += 1          # the count comes from the MATLAB vector length
             args.append(a)
             i += 1
         if bad:
@@ -426,6 +459,12 @@ READERS = {
 # return the right width, so only the integer-like kinds get a cast.
 CAST_KINDS = {"int", "enum", "selector"}
 
+# Functions after which the handle of their series or cursor argument is
+# stale. LVGL frees the struct inside the call.
+RELEASES = {"lv_chart_remove_series", "lv_chart_remove_cursor"}
+
+RES_KIND = {"series": "PLV_RES_SERIES", "cursor": "PLV_RES_CURSOR"}
+
 
 def emit_handler(f):
     lines = []
@@ -443,10 +482,22 @@ def emit_handler(f):
         guard = ["    plv_need_args(nrhs, %d, %d, \"%s\");" %
                  (n_required, n_required, f.opname)]
 
+    # The chart of a series or cursor argument is the first object argument.
+    chart_pos = 0
+    pos = 1
+    for a in f.in_args:
+        if a.kind == "obj":
+            chart_pos = pos
+            break
+        pos += 1
+
     # locals
     sbuf = 0
+    vbuf = 0
     decls = []
     calls = []
+    pre = []
+    release_pos = None
     argpos = 1
     for a in f.args:
         if a.kind == "out_str":
@@ -462,6 +513,22 @@ def emit_handler(f):
             decls.append("    plv_strbuf_t sbuf%d;" % sbuf)
             calls.append(READERS["str"] % (argpos, argpos, sbuf))
             sbuf += 1
+        elif a.kind == "i32vec":
+            # Read before the call: the count argument comes from the same
+            # read, and C leaves the order of argument evaluation open.
+            decls.append("    plv_i32vec_t vbuf%d;" % vbuf)
+            decls.append("    const int32_t * vec%d;" % vbuf)
+            pre.append("    vec%d = plv_arg_i32vec(prhs[%d], %d, &vbuf%d, 0, 0);"
+                       % (vbuf, argpos, argpos, vbuf))
+            calls.append("vec%d" % vbuf)
+            calls.append("vbuf%d.n" % vbuf)
+            vbuf += 1
+        elif a.kind in ("series", "cursor"):
+            calls.append("plv_arg_%s(prhs, %d, %d)" % (a.kind, argpos, chart_pos))
+            if f.cname in RELEASES:
+                release_pos = argpos
+        elif a.kind == "imgsrc":
+            calls.append("plv_arg_image_src(prhs[%d], %d)" % (argpos, argpos))
         elif a.kind == "int":
             lo, hi = INT_TYPES.get(a.base, (-2147483648, 2147483647))
             calls.append("(%s)" % a.ctype + (READERS["int"] % (argpos, argpos, _c(lo), _c(hi))))
@@ -475,6 +542,8 @@ def emit_handler(f):
 
     if f.ret_kind == "obj":
         decls.append("    lv_obj_t * ret;")
+    elif f.ret_kind in ("series", "cursor"):
+        decls.append("    %s ret;" % f.ret_ctype)
     elif f.ret_kind == "str":
         decls.append("    const char * ret;")
     elif f.ret_kind != "void":
@@ -486,6 +555,7 @@ def emit_handler(f):
     lines.extend(guard)
     if not f.out_args:
         lines.append("    (void)nlhs;")
+    lines.extend(pre)
 
     call = "%s(%s)" % (f.cname, ", ".join(calls))
     if f.ret_kind == "void":
@@ -494,12 +564,20 @@ def emit_handler(f):
         lines.append("    ret = %s;" % call)
     for i in range(sbuf):
         lines.append("    plv_strbuf_free(&sbuf%d);" % i)
+    for i in range(vbuf):
+        lines.append("    plv_i32vec_free(&vbuf%d);" % i)
+    if release_pos is not None:
+        lines.append("    plv_res_release_arg(prhs[%d]);" % release_pos)
     lines.append("    plv_check_deferred();")
 
     # outputs
     out_index = 0
     if f.ret_kind == "obj":
         lines.append("    plhs[0] = plv_ret_obj(ret);")
+        out_index = 1
+    elif f.ret_kind in ("series", "cursor"):
+        lines.append("    plhs[0] = plv_ret_res(ret, %s, plv_arg_obj(prhs[%d], %d));"
+                     % (RES_KIND[f.ret_kind], chart_pos, chart_pos))
         out_index = 1
     elif f.ret_kind == "str":
         lines.append("    plhs[0] = plv_ret_str(ret);")
@@ -533,7 +611,61 @@ def _c(v):
     return str(v)
 
 
-def emit_gen_c(funcs, path):
+STYLE_READERS = {
+    "int":   "(%s)plv_arg_int(v, pos, %s, %s)",
+    "enum":  "(%s)plv_arg_enum(v, pos)",
+    "float": "plv_arg_double(v, pos)",
+    "bool":  "plv_arg_bool(v, pos)",
+    "color": "plv_arg_color(v, pos)",
+    "opa":   "(lv_opa_t)plv_arg_opa(v, pos)",
+    "font":  "plv_arg_font(v, pos)",
+}
+
+
+def style_props(collector, funcs, dropped):
+    """(prop, key, value Arg) for every kept lv_obj_set_style_<prop> whose
+    lv_style_set_<prop> takes the same value type. The table key drops the
+    underscores, so 'bg_color' and 'BgColor' both find it."""
+    out = []
+    for f in sorted(funcs, key=lambda x: x.cname):
+        if not f.cname.startswith("lv_obj_set_style_"):
+            continue
+        ins = f.in_args
+        if len(ins) != 3 or ins[0].kind != "obj" or ins[2].kind != "selector":
+            continue
+        prop = f.cname[len("lv_obj_set_style_"):]
+        sname = "lv_style_set_" + prop
+        decl = collector.funcs.get(sname)
+        if decl is None:
+            dropped.append(("StyleSetProp " + prop, "no %s in the configured headers" % sname))
+            continue
+        params = decl.type.args.params if decl.type.args else []
+        if len(params) != 2:
+            dropped.append(("StyleSetProp " + prop, "%s does not take one value" % sname))
+            continue
+        a = classify_arg(collector, params[1].name or "value", params[1].type, sname)
+        if a is None or a.kind != ins[1].kind or a.kind not in STYLE_READERS:
+            dropped.append(("StyleSetProp " + prop, "value type differs from the obj setter"))
+            continue
+        out.append((prop, prop.replace("_", "").lower(), a))
+    keys = [k for _, k, _ in out]
+    assert len(keys) == len(set(keys)), "style property keys collide"
+    return out
+
+
+def emit_style_setter(prop, a):
+    if a.kind == "int":
+        lo, hi = INT_TYPES.get(a.base, (-2147483648, 2147483647))
+        expr = STYLE_READERS["int"] % (a.ctype, _c(lo), _c(hi))
+    elif a.kind == "enum":
+        expr = STYLE_READERS["enum"] % a.ctype
+    else:
+        expr = STYLE_READERS[a.kind]
+    return ("static void plv_sp_%s(lv_style_t * s, const mxArray * v, int pos)\n"
+            "{\n    lv_style_set_%s(s, %s);\n}\n") % (prop, prop, expr)
+
+
+def emit_gen_c(funcs, props, path):
     funcs = sorted(funcs, key=lambda f: f.opname)
     out = [BANNER, '#include "plv_marshal.h"', ""]
     for f in funcs:
@@ -545,6 +677,17 @@ def emit_gen_c(funcs, path):
     out.append("};")
     out.append("")
     out.append("const int plv_gen_op_count = %d;" % len(funcs))
+    out.append("")
+    out.append("/* StyleSetProp: one setter per style property, sorted by key. */")
+    out.append("")
+    for prop, _, a in sorted(props):
+        out.append(emit_style_setter(prop, a))
+    out.append("const plv_style_prop_entry_t plv_style_props[] = {")
+    for prop, key, _ in sorted(props, key=lambda t: t[1]):
+        out.append('    { "%s", plv_sp_%s },' % (key, prop))
+    out.append("};")
+    out.append("")
+    out.append("const int plv_style_prop_count = %d;" % len(props))
     out.append("")
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(out))
@@ -604,6 +747,19 @@ HAND_WRITTEN = [
     ("FocusObj", "PsychLVGL('FocusObj', h)"),
     ("EventName", "name = PsychLVGL('EventName', code)"),
     ("FrameChecksum", "crc = PsychLVGL('FrameChecksum')"),
+    ("StyleCreate", "style = PsychLVGL('StyleCreate')"),
+    ("StyleDelete", "PsychLVGL('StyleDelete', style)"),
+    ("StyleSetProp", "PsychLVGL('StyleSetProp', style, 'bg_color', value)"),
+    ("ObjAddStyle", "PsychLVGL('ObjAddStyle', h, style [, selector])"),
+    ("ObjRemoveStyle", "PsychLVGL('ObjRemoveStyle', h, style [, selector])"),
+    ("ObjRemoveStyleAll", "PsychLVGL('ObjRemoveStyleAll', h)"),
+    ("ImageFromTexture", "img = PsychLVGL('ImageFromTexture', glTex, w, h)"),
+    ("ImageFromArray", "img = PsychLVGL('ImageFromArray', uint8Image)"),
+    ("ImageDelete", "PsychLVGL('ImageDelete', img)"),
+    ("FontLoad", "font = PsychLVGL('FontLoad', ttfPath, px)"),
+    ("FontDelete", "PsychLVGL('FontDelete', font)"),
+    ("ChartSetValues", "PsychLVGL('ChartSetValues', chart, series, values)"),
+    ("ChartGetValues", "values = PsychLVGL('ChartGetValues', chart, series)"),
 ]
 
 
@@ -624,6 +780,10 @@ def emit_help_m(funcs, path):
     lines.append("%   Generated subcommands (one per allowlisted LVGL function):")
     for f in funcs:
         lines.append("%%     %s" % sig_text(f))
+    lines.append("%")
+    lines.append("%   StyleSetProp takes the property names of the ObjSetStyle<Prop>")
+    lines.append("%   subcommands, for example 'bg_color' or 'text_font', and the same value.")
+    lines.append("%   Font arguments take a built-in name from FontList or a FontLoad handle.")
     lines.append("%")
     lines.append("%   See SPEC.md for the marshaling rules and README.md for the build.")
     lines.append("")
@@ -671,6 +831,16 @@ SAMPLE = {
     "enum":     "0",
     "selector": "0",
     "font":     "'montserrat_16'",
+    "i32vec":   "[1 2 3]",
+    "imgsrc":   "0",
+    "series":   "t_chart_ser",
+    "cursor":   "t_chart_cur",
+}
+
+# What creates a fresh series or cursor for a call that frees its argument.
+FRESH = {
+    "series": "PsychLVGL('ChartAddSeries', t_chart, [255 0 0], 0)",
+    "cursor": "PsychLVGL('ChartAddCursor', t_chart, [0 0 255], 0)",
 }
 
 
@@ -698,6 +868,11 @@ def emit_test_m(funcs, path):
         lines.append("    t_%s = PsychLVGL('%sCreate', scr);" % (w, camel("lv_" + w)))
     for w in sorted(widgets - creatable):
         lines.append("    t_%s = PsychLVGL('ObjCreate', scr);" % w)
+    names = {f.opname for f in funcs}
+    if "ChartAddSeries" in names:
+        lines.append("    t_chart_ser = %s;" % FRESH["series"])
+    if "ChartAddCursor" in names:
+        lines.append("    t_chart_cur = %s;" % FRESH["cursor"])
     lines.append("")
 
     for f in funcs:
@@ -711,6 +886,8 @@ def emit_test_m(funcs, path):
                 args.append(target)
             elif a.kind == "obj":
                 args.append("scr")
+            elif a.kind in FRESH and f.cname in RELEASES:
+                args.append(FRESH[a.kind])
             else:
                 args.append(SAMPLE.get(a.kind, "0"))
             first = False
@@ -780,7 +957,8 @@ def main():
               % (len(funcs), len(dropped), len(collector.enum_names)))
         return
 
-    emit_gen_c(funcs, os.path.join(ROOT, "src", "psychlvgl_gen.c"))
+    props = style_props(collector, funcs, dropped)
+    emit_gen_c(funcs, props, os.path.join(ROOT, "src", "psychlvgl_gen.c"))
     emit_enums_c(collector.enum_names + EXTRA_ENUM_NAMES,
                  os.path.join(ROOT, "src", "psychlvgl_enums.c"))
     emit_help_m(funcs, os.path.join(ROOT, "m", "PsychLVGL.m"))
@@ -792,8 +970,9 @@ def main():
         for name, why in sorted(dropped):
             fh.write("%-44s %s\n" % (name, why))
 
-    print("generated %d subcommands, %d enum constants, %d functions dropped"
-          % (len(funcs), len(set(collector.enum_names)), len(dropped)))
+    print("generated %d subcommands, %d style properties, %d enum constants, "
+          "%d functions dropped"
+          % (len(funcs), len(props), len(set(collector.enum_names)), len(dropped)))
 
 
 if __name__ == "__main__":

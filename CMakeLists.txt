@@ -12,6 +12,8 @@ option(PSYCHLVGL_TEST_SW  "Software render variant used by the no-GL tests" OFF)
 option(PSYCHLVGL_TRACY    "Compile the Tracy client into the core library"  OFF)
 option(PSYCHLVGL_SMOKE_GL "Build the native GL smoke test executable"       OFF)
 option(PSYCHLVGL_STATS    "Compile the Stats counters"                      ON)
+set(PSYCHLVGL_TRACY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tracy" CACHE PATH
+    "Tracy checkout used when PSYCHLVGL_TRACY is ON")
 
 # GL3 matches the compatibility context Psychtoolbox creates on Windows and
 # Linux. macOS compatibility profiles stop at GL 2.1, so they need GL2.
@@ -41,38 +43,46 @@ set(LV_USE_PKG_CONFIG     OFF  CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS     OFF  CACHE BOOL "" FORCE)
 
 # --- vendored LVGL patches --------------------------------------------------
-# LVGL's OpenGL driver needs OpenGL 3.0 upstream. patches/lvgl adds a GLSL 1.20
-# shader path and a luminance texture fallback so the GL2 build runs on the
-# legacy 2.1 contexts Psychtoolbox creates on macOS (SPEC deviation D38). The
-# patch is applied to the submodule checkout at configure time. A marker
-# string in the patched header tells whether it is already there, so this is
-# idempotent and needs no tool when nothing is to do. tools/apply_lvgl_patches.sh
-# does the same from a shell.
+# Each patch in patches/lvgl is applied to the submodule checkout at configure
+# time. A marker string in a file the patch adds to tells whether it is already
+# there, so this is idempotent and needs no tool when nothing is to do.
+# tools/apply_lvgl_patches.sh does the same from a shell.
+#   0001  GLSL 1.20 shader path and a luminance texture fallback, so the GL2
+#         build runs on the legacy 2.1 contexts Psychtoolbox creates on macOS
+#         (SPEC deviation D38).
+#   0002  lets an image descriptor name an OpenGL texture that the NanoVG draw
+#         unit draws without a copy, which is how ImageFromTexture shows a
+#         Psychtoolbox texture (SPEC deviation D41).
 set(_plv_lvgl_dir ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lvgl)
-set(_plv_patch ${CMAKE_CURRENT_SOURCE_DIR}/patches/lvgl/0001-opengles-driver-gl21-glsl120.patch)
-file(STRINGS ${_plv_lvgl_dir}/src/drivers/opengles/opengl_shader/lv_opengl_shader_internal.h
-     _plv_marker REGEX "LV_OPENGL_GLSL_VERSION_120")
-if(NOT _plv_marker)
+function(plv_apply_lvgl_patch patch marker_file marker)
+    set(_patch ${CMAKE_CURRENT_SOURCE_DIR}/patches/lvgl/${patch})
+    file(STRINGS ${_plv_lvgl_dir}/${marker_file} _found REGEX "${marker}")
+    if(_found)
+        message(STATUS "third_party/lvgl already carries ${patch}")
+        return()
+    endif()
     find_program(_plv_git git)
     find_program(_plv_patch_prog patch)
     if(_plv_git)
-        execute_process(COMMAND ${_plv_git} -C ${_plv_lvgl_dir} apply ${_plv_patch}
-                        RESULT_VARIABLE _plv_rc OUTPUT_QUIET ERROR_VARIABLE _plv_err)
+        execute_process(COMMAND ${_plv_git} -C ${_plv_lvgl_dir} apply ${_patch}
+                        RESULT_VARIABLE _rc OUTPUT_QUIET ERROR_VARIABLE _err)
     elseif(_plv_patch_prog)
-        execute_process(COMMAND ${_plv_patch_prog} -p1 -N -d ${_plv_lvgl_dir} -i ${_plv_patch}
-                        RESULT_VARIABLE _plv_rc OUTPUT_QUIET ERROR_VARIABLE _plv_err)
+        execute_process(COMMAND ${_plv_patch_prog} -p1 -N -d ${_plv_lvgl_dir} -i ${_patch}
+                        RESULT_VARIABLE _rc OUTPUT_QUIET ERROR_VARIABLE _err)
     else()
-        message(FATAL_ERROR "Neither git nor patch is available to apply ${_plv_patch}. "
+        message(FATAL_ERROR "Neither git nor patch is available to apply ${_patch}. "
                             "Run tools/apply_lvgl_patches.sh on a machine that has one, "
                             "or apply the patch by hand inside third_party/lvgl.")
     endif()
-    if(NOT _plv_rc EQUAL 0)
-        message(FATAL_ERROR "Applying ${_plv_patch} to third_party/lvgl failed: ${_plv_err}")
+    if(NOT _rc EQUAL 0)
+        message(FATAL_ERROR "Applying ${_patch} to third_party/lvgl failed: ${_err}")
     endif()
-    message(STATUS "Applied ${_plv_patch} to third_party/lvgl")
-else()
-    message(STATUS "third_party/lvgl already carries the OpenGL 2.1 patch")
-endif()
+    message(STATUS "Applied ${patch} to third_party/lvgl")
+endfunction()
+plv_apply_lvgl_patch(0001-opengles-driver-gl21-glsl120.patch
+    src/drivers/opengles/opengl_shader/lv_opengl_shader_internal.h "LV_OPENGL_GLSL_VERSION_120")
+plv_apply_lvgl_patch(0002-nanovg-image-from-gl-texture.patch
+    include/lvgl/draw/lv_image_dsc.h "LV_IMAGE_FLAGS_GL_TEXTURE")
 
 add_subdirectory(third_party/lvgl lvgl)
 
@@ -104,6 +114,8 @@ endif()
 set(PLV_CORE_SOURCES
     src/core/plv_core.c
     src/core/plv_handles.c
+    src/core/plv_res.c
+    src/core/plv_assets.c
     src/core/plv_events.c
     src/core/plv_input.c
     src/core/plv_stats.c
@@ -134,14 +146,23 @@ if(APPLE)
     target_compile_definitions(plv_core PUBLIC GL_SILENCE_DEPRECATION=1 CGL_SILENCE_DEPRECATION=1)
 endif()
 if(PSYCHLVGL_TRACY)
-    # Tracy is C++. Compiling its client into this library keeps the MEX plain C.
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tracy/public/TracyClient.cpp)
+    # Tracy is C++. Compiling its client into this library keeps the MEX plain
+    # C. plv_tracy.cpp is the one piece of the GPU zone that needs C++.
+    if(EXISTS ${PSYCHLVGL_TRACY_DIR}/public/TracyClient.cpp)
         enable_language(CXX)
-        target_sources(plv_core PRIVATE third_party/tracy/public/TracyClient.cpp)
-        target_include_directories(plv_core PUBLIC third_party/tracy/public)
+        target_sources(plv_core PRIVATE ${PSYCHLVGL_TRACY_DIR}/public/TracyClient.cpp
+                                        src/core/plv_tracy.cpp)
+        target_include_directories(plv_core PUBLIC ${PSYCHLVGL_TRACY_DIR}/public)
         target_compile_definitions(plv_core PUBLIC TRACY_ENABLE=1 PSYCHLVGL_TRACY=1)
     else()
-        message(FATAL_ERROR "PSYCHLVGL_TRACY=ON but third_party/tracy is missing")
+        message(FATAL_ERROR
+            "PSYCHLVGL_TRACY=ON but Tracy is missing: ${PSYCHLVGL_TRACY_DIR}/public/TracyClient.cpp "
+            "does not exist. Clone it with
+"
+            "  git clone --branch v0.11.1 https://github.com/wolfpld/tracy.git third_party/tracy
+"
+            "or pass -DPSYCHLVGL_TRACY_DIR=<a Tracy checkout>, or configure with "
+            "-DPSYCHLVGL_TRACY=OFF. See third_party/PINS.md.")
     endif()
 endif()
 
@@ -171,6 +192,8 @@ file(WRITE ${CMAKE_BINARY_DIR}/plv_toolchain_id.txt "${CMAKE_C_COMPILER_ID}")
 if(PSYCHLVGL_SMOKE_GL AND NOT PSYCHLVGL_TEST_SW)
     add_executable(smoke_gl tests/native/smoke_gl.c)
     target_link_libraries(smoke_gl PRIVATE plv_core)
+    # The phase 2 scene loads a TTF file from the LVGL submodule.
+    target_compile_definitions(smoke_gl PRIVATE PLV_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     if(WIN32)
         target_link_libraries(smoke_gl PRIVATE opengl32 gdi32 user32)
     elseif(APPLE)

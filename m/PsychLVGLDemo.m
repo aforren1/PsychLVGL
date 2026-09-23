@@ -5,7 +5,9 @@ function PsychLVGLDemo(seconds)
 %   PsychLVGLDemo(seconds)    Runs for that long, which is what a test does.
 %
 %   The panel holds a contrast slider, a spatial frequency dropdown, a subject
-%   id text area and a status label. Drag the slider or turn the wheel; press
+%   id text area, a chart of the contrast over the last seconds, and a status
+%   label. The dropdown and the text area share one lv_style_t, so one
+%   StyleSetProp call restyles both. Drag the slider or turn the wheel; press
 %   ESCAPE to finish.
 %
 %   The whole frame loop is four calls: PsychLVGLOpen, PsychLVGLFrame,
@@ -27,7 +29,7 @@ function PsychLVGLDemo(seconds)
     PsychLVGLSetup();
 
     panelW = 380;
-    panelH = 420;
+    panelH = 460;
 
     % Before the window opens: PsychDefaultSetup(2) gives every window that
     % PsychImaging opens afterwards the normalized 0 to 1 colour range, which
@@ -73,6 +75,25 @@ function PsychLVGLDemo(seconds)
     PsychLVGL('ObjAlign', ta, 'LV_ALIGN_TOP_MID', 0, 180);
     PsychLVGL('AddToGroup', ta);
 
+    % One style shared by two widgets. A change to it restyles both.
+    card = PsychLVGL('StyleCreate');
+    PsychLVGL('StyleSetProp', card, 'border_color', [80 160 255]);
+    PsychLVGL('StyleSetProp', card, 'border_width', 2);
+    PsychLVGL('StyleSetProp', card, 'radius', 6);
+    PsychLVGL('ObjAddStyle', dd, card);
+    PsychLVGL('ObjAddStyle', ta, card);
+
+    % Contrast history: one point every few frames, the oldest scrolls off.
+    history = PsychLVGL('ChartCreate', scr);
+    PsychLVGL('ObjSetSize', history, 300, 110);
+    PsychLVGL('ObjAlign', history, 'LV_ALIGN_TOP_MID', 0, 240);
+    PsychLVGL('ChartSetType', history, 'LV_CHART_TYPE_LINE');
+    PsychLVGL('ChartSetPointCount', history, 60);
+    PsychLVGL('ChartSetAxisRange', history, 'LV_CHART_AXIS_PRIMARY_Y', 0, 100);
+    PsychLVGL('ChartSetDivLineCount', history, 3, 5);
+    series = PsychLVGL('ChartAddSeries', history, [255 200 0], 'LV_CHART_AXIS_PRIMARY_Y');
+    PsychLVGL('ChartSetAllValues', history, series, 60);
+
     status = PsychLVGL('LabelCreate', scr);
     PsychLVGL('LabelSetText', status, 'ready');
     PsychLVGL('ObjAlign', status, 'LV_ALIGN_BOTTOM_MID', 0, -12);
@@ -92,6 +113,7 @@ function PsychLVGLDemo(seconds)
     running = true;
     checked = false;
     phase = 0;
+    frame = 0;
     tStop = GetSecs() + seconds;
     while running
         [ui, E] = PsychLVGLFrame(ui);
@@ -105,6 +127,13 @@ function PsychLVGLDemo(seconds)
                 freq = freqs(min(numel(freqs), S(k).param + 1));
                 PsychLVGL('LabelSetText', status, sprintf('%d cyc/deg', freq));
             end
+        end
+
+        % A chart point costs a redraw of the plot, so one every six frames
+        % is plenty for a history that spans several seconds.
+        frame = frame + 1;
+        if mod(frame, 6) == 0
+            PsychLVGL('ChartSetNextValue', history, series, round(contrast * 100));
         end
 
         phase = phase + 4;

@@ -46,6 +46,11 @@ typedef struct {
     uint32_t     slot_count;
     uint32_t     free_head;
 
+    struct plv_res_s * res;          /* resource table, index 0 unused */
+    uint32_t     res_count;
+    uint32_t     res_free_head;
+    uint32_t     res_owned_live;     /* live series and cursors */
+
     plv_event_t * events;
     uint32_t      queue_capacity;
     uint32_t      head, tail;
@@ -80,6 +85,28 @@ int  plv_mask_get(const uint32_t * mask, uint32_t bit);
 int  plv_handles_init(uint32_t max_objects);
 void plv_handles_deinit(void);
 void plv_handle_release_obj(lv_obj_t * obj);
+
+/* ---- resource table ---- */
+typedef struct plv_res_s {
+    void *   ptr;        /* NULL when free */
+    void *   owner;      /* the chart of a series or cursor */
+    uint32_t next_free;
+    uint16_t gen;
+    uint8_t  kind;
+    uint8_t  pad;
+} plv_res_t;
+
+int  plv_res_init(uint32_t capacity);
+/* Frees every style, image and font. The widget tree has to be gone first,
+ * because objects hold pointers to all three. */
+void plv_res_deinit(void);
+void plv_res_release_owned_by(const void * owner);
+/* Frees what a resource points to; plv_res_deinit and the Delete calls use it. */
+void plv_assets_free(plv_res_kind_t kind, void * ptr);
+
+/* ---- GPU timing and the Tracy GPU zone around lv_timer_handler ---- */
+void plv_display_gpu_begin(void);
+void plv_display_gpu_end(void);
 
 /* ---- event ring ---- */
 int  plv_events_init(uint32_t capacity);

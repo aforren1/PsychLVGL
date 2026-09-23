@@ -26,6 +26,7 @@
  */
 #include "plv_internal.h"
 #include "plv_gl_loader.h"
+#include "plv_profiler.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -55,6 +56,19 @@ static uint8_t * s_draw_buf;
 static size_t    s_draw_buf_size;
 static char   s_gl_version[128];
 static char   s_gl_renderer[128];
+
+/* GPU timing: a GL_TIMESTAMP pair around lv_timer_handler. The pairs go
+ * through a small ring and are read back only once the GPU reports them
+ * available, normally two or three frames later, so the read never stalls
+ * the frame. */
+#define PLV_GPU_SLOTS 4
+static GLuint  s_q[PLV_GPU_SLOTS][2];
+static uint8_t s_q_busy[PLV_GPU_SLOTS];
+static int     s_q_state;   /* 0 not tried yet, 1 usable, -1 no timer query here */
+static uint32_t s_q_head;
+
+static void plv_gpu_forget(void);
+static void plv_gpu_drain(void);
 
 static int plv_set_draw_buf(lv_display_t * disp, int32_t w, int32_t h, plv_err_t * err)
 {
@@ -248,6 +262,7 @@ int plv_display_create(int32_t w, int32_t h, plv_err_t * err)
         s_stencil_rbo = 0;
         s_rbo_w = 0;
         s_rbo_h = 0;
+        plv_gpu_forget();
     }
     s_ctx = plv_gl_context();
 
@@ -388,6 +403,9 @@ void plv_display_destroy(void)
             GLuint t = (GLuint)s_tex;
             glDeleteTextures(1, &t);
         }
+        /* Read the pairs still in flight, so a Tracy GPU zone that was
+         * opened is also closed. */
+        plv_gpu_drain();
         plv_gl_drain();
     }
     else if(g_plv.print_fn) {
@@ -478,6 +496,152 @@ void plv_display_flush_cb(lv_display_t * disp, const lv_area_t * area, uint8_t *
     g_plv.dirty = 1;
     g_plv.stats.flush_count++;
     lv_display_flush_ready(disp);
+}
+
+/* ------------------------------------------------------------ GPU timing */
+
+#if defined(PSYCHLVGL_TRACY) && PSYCHLVGL_TRACY
+/* One Tracy GPU context for the process: Tracy has 255 ids, and every Init
+ * of this build runs on the same device and the same timestamp base. */
+unsigned char plv_tracy_gpu_context(void);   /* plv_tracy.cpp */
+static unsigned char s_tracy_ctx;
+static int           s_tracy_ready;
+static const struct ___tracy_source_location_data s_gpu_loc = {
+    "lv_timer_handler (GPU)", "plv_update", __FILE__, (uint32_t)__LINE__, 0
+};
+
+static void plv_tracy_gpu_context_once(void)
+{
+    struct ___tracy_gpu_new_context_data nc;
+    struct ___tracy_gpu_context_name_data nm;
+    static const char name[] = "psychlvgl";
+    GLint64 t = 0;
+
+    if(s_tracy_ready || glGetInteger64v == NULL) return;
+    /* The context needs a GPU timestamp to line its clock up with the CPU. */
+    glGetInteger64v(GL_TIMESTAMP, &t);
+    s_tracy_ctx = plv_tracy_gpu_context();
+    nc.gpuTime = (int64_t)t;
+    nc.period  = 1.0f;
+    nc.context = s_tracy_ctx;
+    nc.flags   = 0;
+    nc.type    = 1;                     /* tracy::GpuContextType::OpenGl */
+    ___tracy_emit_gpu_new_context_serial(nc);
+    nm.context = s_tracy_ctx;
+    nm.name    = name;
+    nm.len     = (uint16_t)(sizeof(name) - 1);
+    ___tracy_emit_gpu_context_name_serial(nm);
+    s_tracy_ready = 1;
+}
+#endif
+
+static void plv_gpu_forget(void)
+{
+    /* Query names belong to the context that made them. */
+    memset(s_q, 0, sizeof(s_q));
+    memset(s_q_busy, 0, sizeof(s_q_busy));
+    s_q_state = 0;
+    s_q_head  = 0;
+}
+
+static void plv_gpu_setup(void)
+{
+    s_q_state = -1;
+    /* GL_TIMESTAMP needs OpenGL 3.3 or GL_ARB_timer_query. The GL 2.1
+     * context of macOS has neither, and gpuNs then stays 0. */
+    if(!(GLAD_GL_VERSION_3_3 || GLAD_GL_ARB_timer_query)) return;
+    if(glGenQueries == NULL || glQueryCounter == NULL || glGetQueryObjectiv == NULL
+       || glGetQueryObjectui64v == NULL) return;
+    glGenQueries(2 * PLV_GPU_SLOTS, &s_q[0][0]);
+    if(glGetError() != GL_NO_ERROR || s_q[0][0] == 0) return;
+    s_q_state = 1;
+#if defined(PSYCHLVGL_TRACY) && PSYCHLVGL_TRACY
+    plv_tracy_gpu_context_once();
+#endif
+}
+
+static void plv_gpu_read(uint32_t slot, int wait)
+{
+    GLint avail = 0;
+    GLuint64 t0 = 0, t1 = 0;
+    uint64_t dt;
+
+    if(!s_q_busy[slot]) return;
+    if(!wait) {
+        /* The second timestamp is written last, so it decides for both. */
+        glGetQueryObjectiv(s_q[slot][1], GL_QUERY_RESULT_AVAILABLE, &avail);
+        if(!avail) return;
+    }
+    glGetQueryObjectui64v(s_q[slot][0], GL_QUERY_RESULT, &t0);
+    glGetQueryObjectui64v(s_q[slot][1], GL_QUERY_RESULT, &t1);
+    s_q_busy[slot] = 0;
+
+    dt = (t1 > t0) ? (uint64_t)(t1 - t0) : 0u;
+    g_plv.stats.gpu_last_ns = dt;
+    if(dt > g_plv.stats.gpu_max_ns) g_plv.stats.gpu_max_ns = dt;
+
+#if defined(PSYCHLVGL_TRACY) && PSYCHLVGL_TRACY
+    if(s_tracy_ready) {
+        struct ___tracy_gpu_time_data d;
+        d.context = s_tracy_ctx;
+        d.queryId = (uint16_t)(slot * 2u);
+        d.gpuTime = (int64_t)t0;
+        ___tracy_emit_gpu_time_serial(d);
+        d.queryId = (uint16_t)(slot * 2u + 1u);
+        d.gpuTime = (int64_t)t1;
+        ___tracy_emit_gpu_time_serial(d);
+    }
+#endif
+}
+
+static void plv_gpu_drain(void)
+{
+    uint32_t i;
+    if(s_q_state != 1) return;
+    for(i = 0; i < PLV_GPU_SLOTS; i++) plv_gpu_read(i, 1);
+}
+
+void plv_display_gpu_begin(void)
+{
+    uint32_t i, slot;
+
+    if(s_q_state == 0) plv_gpu_setup();
+    if(s_q_state != 1) return;
+
+    for(i = 0; i < PLV_GPU_SLOTS; i++) plv_gpu_read(i, 0);
+    slot = s_q_head;
+    /* Four frames behind is rare; waiting then keeps every opened Tracy
+     * zone paired with its two timestamps. */
+    if(s_q_busy[slot]) plv_gpu_read(slot, 1);
+
+    glQueryCounter(s_q[slot][0], GL_TIMESTAMP);
+#if defined(PSYCHLVGL_TRACY) && PSYCHLVGL_TRACY
+    if(s_tracy_ready) {
+        struct ___tracy_gpu_zone_begin_data d;
+        d.srcloc  = (uint64_t)(uintptr_t)&s_gpu_loc;
+        d.queryId = (uint16_t)(slot * 2u);
+        d.context = s_tracy_ctx;
+        ___tracy_emit_gpu_zone_begin_serial(d);
+    }
+#endif
+}
+
+void plv_display_gpu_end(void)
+{
+    uint32_t slot = s_q_head;
+
+    if(s_q_state != 1) return;
+    glQueryCounter(s_q[slot][1], GL_TIMESTAMP);
+#if defined(PSYCHLVGL_TRACY) && PSYCHLVGL_TRACY
+    if(s_tracy_ready) {
+        struct ___tracy_gpu_zone_end_data d;
+        d.queryId = (uint16_t)(slot * 2u + 1u);
+        d.context = s_tracy_ctx;
+        ___tracy_emit_gpu_zone_end_serial(d);
+    }
+#endif
+    s_q_busy[slot] = 1;
+    s_q_head = (slot + 1u) % PLV_GPU_SLOTS;
 }
 
 const char * plv_gl_version_string(void)

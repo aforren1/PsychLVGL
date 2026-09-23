@@ -7,7 +7,10 @@ function PsychLVGLClose(ui)
 %
 %   The call wraps PsychLVGL('Shutdown') in Screen('BeginOpenGL') and
 %   Screen('EndOpenGL'), closes the Psychtoolbox texture that wrapped the
-%   OpenGL texture, and stops the keyboard queue.
+%   OpenGL texture, and stops the keyboard queue. Shutdown deletes every
+%   widget and then every style, image and font handle, so no handle from
+%   this session stays valid. Psychtoolbox textures that ImageFromTexture
+%   wrapped stay open; close them yourself.
 %
 %   It is safe to call twice, and safe after the window is already closed.
 %   PsychLVGL('Shutdown') runs in every case, because that is what unlocks

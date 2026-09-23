@@ -8,6 +8,11 @@ that texture like any other PTB texture, so no pixels cross the CPU.
 `SPEC.md` is the design reference. Read it for the marshaling rules, the handle
 model and the event model. This file tells you how to build, test and run.
 
+Status: phases 1 and 2 of SPEC section 13 are implemented. Phase 2 adds
+charts, shared styles, images drawn straight from Psychtoolbox textures, TTF
+fonts, and GPU timing. Phase 3, user interfaces exported from the LVGL Pro
+editor, is not started.
+
 ## Requirements
 
 | Item | Version |
@@ -100,7 +105,8 @@ MEX on the path.
 
 The no-GL suite covers the handle table, the event ring, the keypad, dispatch
 and argument errors, the tick, every generated subcommand, a CRC32 of the
-rendered software buffer, and the four helper M-files. The helpers are tested
+rendered software buffer, charts and their series handles, styles, fonts,
+images, and the helper M-files. The helpers are tested
 against a Psychtoolbox stub in `tests/stub`, which records the calls and
 answers them, so the suite checks that every `Screen('BeginOpenGL')` has its
 `Screen('EndOpenGL')` even when the wrapped call fails. `run_tests` puts that
@@ -108,7 +114,7 @@ directory on the path once and takes it off once; no test changes the load
 path, and nothing here calls `rehash`, because a path change while the MEX is
 loaded can drive Octave 10 into unbounded recursion (SPEC deviation D35). The GL suite opens one 640x480 Psychtoolbox window
 and checks the texture id, the rendered colors, the panel orientation, a click,
-and a resize.
+a resize, a chart, a style, a texture image, and a TTF label.
 
 The GL tests, the demo and the perf script all open their window through
 `tests/gl/ptb_test_window.m`. That is the one place that sets
@@ -123,7 +129,9 @@ allows only one OpenGL context per process.
 `smoke_gl` drives the OpenGL and NanoVG path with no engine at all. It creates
 a hidden window and a legacy context, runs the core layer through several
 Update cycles with synthetic input, reads the panel texture back through a
-framebuffer object, and prints the Update times.
+framebuffer object, and prints the Update times. A second scene draws a shared
+style, a line chart, an image straight from an OpenGL texture and a TTF label,
+and checks each one in the read-back pixels.
 
 ```sh
 # Windows
@@ -214,6 +222,58 @@ Screen('Close', tex);
 Every subcommand marked GL in SPEC section 5 has to run between `BeginOpenGL`
 and `EndOpenGL`, and the MEX raises `psychlvgl:NoGLContext` when it does not.
 
+### Charts, styles, images and fonts
+
+None of these subcommands needs an OpenGL context. Each returns a handle, like
+a widget does, and `PsychLVGL('IsValid', h)` works for all of them.
+
+| Subcommand | What it does |
+|---|---|
+| `ch = PsychLVGL('ChartCreate', parent)` | A chart. `ChartSetType`, `ChartSetPointCount`, `ChartSetAxisRange` and the rest of the generated `Chart*` subcommands configure it. |
+| `ser = PsychLVGL('ChartAddSeries', ch, [r g b], axis)` | A series handle. It dies with its chart. |
+| `PsychLVGL('ChartSetNextValue', ch, ser, v)` | Appends one value. The cheap per-frame call, about 0.2 us. |
+| `PsychLVGL('ChartSetValues', ch, ser, values)` | Copies a whole vector into the series. NaN is a gap. |
+| `values = PsychLVGL('ChartGetValues', ch, ser)` | The values in screen order. |
+| `st = PsychLVGL('StyleCreate')` | A shared `lv_style_t`. |
+| `PsychLVGL('StyleSetProp', st, 'bg_color', [r g b])` | Any property of the `ObjSetStyle<Prop>` subcommands, with the same value. |
+| `PsychLVGL('ObjAddStyle', h, st [, selector])` | Adds the style to an object. `ObjRemoveStyle` and `ObjRemoveStyleAll` take it off. |
+| `img = PsychLVGLImageFromTexture(win, tex)` | An image that draws a Psychtoolbox texture, with no pixel copy. |
+| `img = PsychLVGL('ImageFromArray', uint8Image)` | An image from a uint8 HxW, HxWx3 or HxWx4 array. |
+| `PsychLVGL('ImageSetSrc', imageObj, img)` | Shows the image in an image object from `ImageCreate`. 0 clears it. |
+| `f = PsychLVGL('FontLoad', ttfPath, px)` | A TTF or OTF font. The handle works wherever a font name does. |
+| `StyleDelete`, `ImageDelete`, `FontDelete` | Free the resource. Each raises `psychlvgl:InUse` while an object or a style still uses it. |
+
+```matlab
+scr = PsychLVGL('ScreenActive');
+
+ch  = PsychLVGL('ChartCreate', scr);
+PsychLVGL('ObjSetSize', ch, 300, 120);
+PsychLVGL('ChartSetPointCount', ch, 60);
+ser = PsychLVGL('ChartAddSeries', ch, [255 200 0], 'LV_CHART_AXIS_PRIMARY_Y');
+
+card = PsychLVGL('StyleCreate');
+PsychLVGL('StyleSetProp', card, 'border_width', 2);
+PsychLVGL('ObjAddStyle', ch, card);
+
+f = PsychLVGL('FontLoad', 'C:\Windows\Fonts\arial.ttf', 24);
+lbl = PsychLVGL('LabelCreate', scr);
+PsychLVGL('ObjSetStyleTextFont', lbl, f);
+
+tex = Screen('MakeTexture', win, imread('face.png'), [], 1, [], 1);
+img = PsychLVGLImageFromTexture(win, tex);
+PsychLVGL('ImageSetSrc', PsychLVGL('ImageCreate', scr), img);
+
+% every frame
+PsychLVGL('ChartSetNextValue', ch, ser, round(100 * contrast));
+```
+
+A texture image needs a `GL_TEXTURE_2D` texture in upright orientation, which
+is what `specialFlags` 1 with `textureOrientation` 1 gives. The texture stays
+yours: keep it open while the image is shown, and after you change its
+contents call `PsychLVGL('ObjInvalidate', imageObj)`. `PsychLVGLClose` frees
+every chart series, style, image and font of the session, but not the
+Psychtoolbox textures.
+
 `PsychLVGLDemo` is a working example: a Gabor patch whose contrast follows a
 slider, with a dropdown, a text area and a status label. `PsychLVGLDemo(3)`
 runs it for three seconds, which is what a smoke run does.
@@ -254,17 +314,23 @@ only its own `dist/<arch>` and `dist-sw/<arch>`, plus `m/`, `lv_conf.h`,
 
 ## Regenerating the bindings
 
-`src/psychlvgl_gen.c`, `src/psychlvgl_enums.c`, `m/PsychLVGL.m`,
-`m/PsychLVGLOp.m` and `tests/test_gen_marshal.m` are generated from the LVGL
-headers and committed, so a normal build needs no Python.
+`src/psychlvgl_gen.c` (with the `StyleSetProp` property table),
+`src/psychlvgl_enums.c`, `m/PsychLVGL.m`, `m/PsychLVGLOp.m` and
+`tests/test_gen_marshal.m` are generated from the LVGL headers and committed,
+so a normal build needs no Python.
 
 ```sh
 uv run --project gen gen/generate.py
 ```
 
 `gen/allowlist.toml` chooses the functions. `gen/dropped.txt` lists the
-allowlisted functions whose signatures the phase 1 marshaling rules cannot
-express.
+allowlisted functions whose signatures the marshaling rules of SPEC section
+7.3 cannot express.
+
+Run the generator on the patched LVGL tree. Any CMake configure, or
+`tools/apply_lvgl_patches.sh`, applies the patches; patch 0002 adds the enum
+constant `LV_IMAGE_FLAGS_GL_TEXTURE`, and a run on a pristine tree drops it
+from `src/psychlvgl_enums.c`.
 
 ## Known limits
 
@@ -275,28 +341,37 @@ express.
   supported.
 - `Shutdown` clears the widget tree and loads a new screen. It does not free
   LVGL itself.
-- Style properties that need a pointer argument, images, charts, `lv_style_t`
-  handles and TTF fonts are phase 2. See `gen/dropped.txt`.
+- Style properties that need a pointer argument, such as `bg_image_src` or a
+  gradient descriptor, are not bound. See `gen/dropped.txt`.
+- An image from `ImageFromArray` is uploaded to the GPU again every time LVGL
+  draws it, because the image cache is off. Use a texture image for large or
+  often redrawn pictures.
+- Series, cursors, styles, images and fonts share one table of 4096 handles
+  per session.
+- The GPU time in `Stats` needs OpenGL 3.3 or `GL_ARB_timer_query`. It stays 0
+  on the OpenGL 2.1 context of macOS.
 - macOS is built and packaged for Apple silicon only. Psychtoolbox gives a
   GL 2.1 compatibility context there, so the build selects
-  `LV_NANOVG_BACKEND_GL2` and applies the vendored LVGL patch described below.
+  `LV_NANOVG_BACKEND_GL2` and applies vendored LVGL patch 0001, described below.
   The `smoke-gl-macos` job runs that path on Apple's software renderer. The
   software variant and the whole no-GL suite do not depend on it.
 
-## Vendored LVGL patch
+## Vendored LVGL patches
 
-`third_party/lvgl` is the unmodified v9.6.0 submodule plus one patch,
-`patches/lvgl/0001-opengles-driver-gl21-glsl120.patch`. CMake applies it at
-configure time when the checkout does not carry it yet, and
-`tools/apply_lvgl_patches.sh` does the same from a shell. The patch adds a
-GLSL 1.20 shader path and a luminance texture fallback to LVGL's OpenGL
-driver. That is what the GL2 build needs on the OpenGL 2.1 contexts
-Psychtoolbox creates on macOS; upstream LVGL needs OpenGL 3.0 without it.
+`third_party/lvgl` is the unmodified v9.6.0 submodule plus two patches in
+`patches/lvgl`. CMake applies each one at configure time when the checkout
+does not carry it yet, and `tools/apply_lvgl_patches.sh` does the same from a
+shell.
+
+| Patch | What it does | SPEC |
+|---|---|---|
+| `0001-opengles-driver-gl21-glsl120.patch` | Adds a GLSL 1.20 shader path and a luminance texture fallback to LVGL's OpenGL driver. The GL2 build needs it on the OpenGL 2.1 contexts Psychtoolbox creates on macOS; upstream LVGL needs OpenGL 3.0. | D38 |
+| `0002-nanovg-image-from-gl-texture.patch` | Adds the image flag `LV_IMAGE_FLAGS_GL_TEXTURE`, which lets an image descriptor name an OpenGL texture. The NanoVG draw unit then samples the texture directly. `ImageFromTexture` needs it. | D41 |
 
 After a build, `git status` shows `third_party/lvgl` as modified. That is the
-applied patch, not something to commit. To see the pristine tree again, run
-`git -C third_party/lvgl checkout -- .`; the next configure applies the patch
-again. SPEC deviation D38 has the details.
+applied patches, not something to commit. To see the pristine tree again, run
+`git -C third_party/lvgl checkout -- .`; the next configure applies the
+patches again.
 
 ## Releasing
 

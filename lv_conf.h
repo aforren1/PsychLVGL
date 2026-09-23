@@ -1228,11 +1228,17 @@
 #endif /*LV_USE_FREETYPE*/
 
 /** Built-in TTF decoder */
-#define LV_USE_TINY_TTF 0
+/* FontLoad reads a TTF file into memory the MEX owns and hands tiny_ttf the
+ * bytes, so no LVGL file system driver is needed. */
+#define LV_USE_TINY_TTF 1
 
 #if LV_USE_TINY_TTF
 /** Load TTF data from files */
-#define LV_TINY_TTF_FILE_SUPPORT 0
+/* On although FontLoad never passes a path: only this setting makes tiny_ttf
+ * read the in-memory font through a stream that knows its size. With 0 it
+ * follows the table offsets in the file with no bound, so a truncated or
+ * damaged font reads past the buffer. */
+#define LV_TINY_TTF_FILE_SUPPORT 1
 
 /** Glyph cache size (glyphs) */
 #define LV_TINY_TTF_CACHE_GLYPH_CNT 128

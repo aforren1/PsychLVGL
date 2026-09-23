@@ -236,6 +236,11 @@ int plv_init(const plv_init_opts_t * opts, unsigned int * out_texture_id, plv_er
         plv_handles_deinit();
         return plv_fail(err, "psychlvgl:GLInit", "out of memory for the event ring");
     }
+    if(plv_res_init(PLV_MAX_RESOURCES)) {
+        plv_events_deinit();
+        plv_handles_deinit();
+        return plv_fail(err, "psychlvgl:GLInit", "out of memory for the resource table");
+    }
 
     if(!s_lvgl_started) {
         lv_init();
@@ -245,6 +250,7 @@ int plv_init(const plv_init_opts_t * opts, unsigned int * out_texture_id, plv_er
 
     if(s_lvgl_started && plv_display_is_persistent()) {
         if(plv_display_resize(o.w, o.h, err)) {
+            plv_res_deinit();
             plv_events_deinit();
             plv_handles_deinit();
             return 1;
@@ -262,6 +268,7 @@ int plv_init(const plv_init_opts_t * opts, unsigned int * out_texture_id, plv_er
     }
     else if(plv_display_create(o.w, o.h, err)) {
         if(!s_lvgl_started) lv_deinit();
+        plv_res_deinit();
         plv_events_deinit();
         plv_handles_deinit();
         return 1;
@@ -284,14 +291,37 @@ int plv_init(const plv_init_opts_t * opts, unsigned int * out_texture_id, plv_er
     return 0;
 }
 
+/* Every widget has to go before the styles, images and fonts do, because
+ * objects hold bare pointers to all three and LVGL reads them again while it
+ * deletes an object. A fresh screen replaces the active one, and every other
+ * screen the script created is deleted too, so no object that could name a
+ * freed resource survives. The delete hooks that free the handle slots run
+ * inside lv_obj_delete, before the table is freed. */
+static void plv_clear_widgets(void)
+{
+    lv_obj_t * old;
+    lv_obj_t * fresh;
+    uint32_t i;
+
+    if(!g_plv.disp) return;
+    old   = lv_screen_active();
+    fresh = lv_obj_create(NULL);
+    lv_screen_load(fresh);
+    for(i = 1; g_plv.slots && i <= g_plv.slot_count; i++) {
+        lv_obj_t * obj = g_plv.slots[i].obj;
+        if(obj && obj != fresh && lv_obj_get_parent(obj) == NULL) lv_obj_delete(obj);
+    }
+    if(old && old != fresh && lv_obj_is_valid(old)) lv_obj_delete(old);
+}
+
 /* Tears the session down without deciding the fate of LVGL itself. */
 static void plv_shutdown_common(void)
 {
+    plv_clear_widgets();
+    plv_res_deinit();
     if(plv_display_is_persistent()) {
         /* The display, the texture and the NanoVG unit are process resources
-         * here, so only the session state goes. The delete hooks that free the
-         * handle slots run inside lv_obj_clean, before the table is freed. */
-        lv_obj_clean(lv_screen_active());
+         * here, so only the session state goes. */
         plv_input_deinit();
         plv_display_destroy();
     }
@@ -358,8 +388,10 @@ int plv_update(double t_now, const plv_pointer_t * pointer, double wheel,
     plv_input_pump();
 
     PLV_ZONE_BEGIN(timer_handler);
+    plv_display_gpu_begin();
     t_start = plv_now_ns();
     lv_timer_handler();
+    plv_display_gpu_end();
     {
         uint64_t dt = plv_now_ns() - t_start;
         g_plv.stats.update_last_ns = dt;

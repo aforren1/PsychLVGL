@@ -1,0 +1,108 @@
+diff --git a/include/lvgl/draw/lv_image_dsc.h b/include/lvgl/draw/lv_image_dsc.h
+index 52b196b..5bf0f3d 100644
+--- a/include/lvgl/draw/lv_image_dsc.h
++++ b/include/lvgl/draw/lv_image_dsc.h
+@@ -76,6 +76,15 @@ typedef enum _lvimage_flags_t {
+      */
+     LV_IMAGE_FLAGS_CUSTOM_DRAW      = 0x0040,
+ 
++    /**
++     * The image descriptor names an existing OpenGL `GL_TEXTURE_2D` texture
++     * instead of carrying pixels. `data` points to a `uint32_t` that holds the
++     * texture name, and `data_size` is `sizeof(uint32_t)`. Rows are stored
++     * bottom row first, as OpenGL does. The texture stays owned by the caller.
++     * Only the NanoVG draw unit reads this flag.
++     */
++    LV_IMAGE_FLAGS_GL_TEXTURE       = 0x0080,
++
+     /**
+      * Flags reserved for user, lvgl won't use these bits.
+      */
+diff --git a/src/draw/nanovg/lv_draw_nanovg.c b/src/draw/nanovg/lv_draw_nanovg.c
+index 176d1c6..d78570c 100644
+--- a/src/draw/nanovg/lv_draw_nanovg.c
++++ b/src/draw/nanovg/lv_draw_nanovg.c
+@@ -139,6 +139,24 @@ int lv_nanovg_fb_get_image_handle(struct NVGLUframebuffer * fb)
+     return fb->image;
+ }
+ 
++int lv_nanovg_image_from_gl_texture(lv_draw_nanovg_unit_t * u, uint32_t texture, int32_t w, int32_t h,
++                                    int image_flags)
++{
++    LV_ASSERT_NULL(u);
++    /* NODELETE: the texture belongs to the caller, so releasing the NanoVG
++     * image must not delete the OpenGL name. */
++#if defined(NANOVG_GL2_IMPLEMENTATION)
++    int handle = nvglCreateImageFromHandleGL2(u->vg, texture, w, h, image_flags | NVG_IMAGE_NODELETE);
++#elif defined(NANOVG_GL3_IMPLEMENTATION)
++    int handle = nvglCreateImageFromHandleGL3(u->vg, texture, w, h, image_flags | NVG_IMAGE_NODELETE);
++#elif defined(NANOVG_GLES2_IMPLEMENTATION)
++    int handle = nvglCreateImageFromHandleGLES2(u->vg, texture, w, h, image_flags | NVG_IMAGE_NODELETE);
++#else
++    int handle = nvglCreateImageFromHandleGLES3(u->vg, texture, w, h, image_flags | NVG_IMAGE_NODELETE);
++#endif
++    return handle > 0 ? handle : -1;
++}
++
+ /**********************
+  *   STATIC FUNCTIONS
+  **********************/
+diff --git a/src/draw/nanovg/lv_draw_nanovg_private.h b/src/draw/nanovg/lv_draw_nanovg_private.h
+index fdb875d..e6ae961 100644
+--- a/src/draw/nanovg/lv_draw_nanovg_private.h
++++ b/src/draw/nanovg/lv_draw_nanovg_private.h
+@@ -198,6 +198,18 @@ void lv_draw_nanovg_mask_rect(lv_draw_task_t * t, const lv_draw_mask_rect_dsc_t
+  */
+ int lv_nanovg_fb_get_image_handle(struct NVGLUframebuffer * fb);
+ 
++/**
++ * Wrap an existing OpenGL texture as a NanoVG image without taking ownership
++ * @param u pointer to the nanovg unit
++ * @param texture the OpenGL texture name, a `GL_TEXTURE_2D` texture
++ * @param w width of the texture in pixels
++ * @param h height of the texture in pixels
++ * @param image_flags NanoVG image flags
++ * @return the image handle, or -1 on failure
++ */
++int lv_nanovg_image_from_gl_texture(lv_draw_nanovg_unit_t * u, uint32_t texture, int32_t w, int32_t h,
++                                    int image_flags);
++
+ /**
+  * Initialize the blur draw unit state on the given nanovg unit
+  * @param u pointer to the nanovg unit
+diff --git a/src/draw/nanovg/lv_nanovg_image_cache.c b/src/draw/nanovg/lv_nanovg_image_cache.c
+index 356ec6b..7704f94 100644
+--- a/src/draw/nanovg/lv_nanovg_image_cache.c
++++ b/src/draw/nanovg/lv_nanovg_image_cache.c
+@@ -119,6 +119,31 @@ int lv_nanovg_image_cache_get_handle(struct _lv_draw_nanovg_unit_t * u,
+     LV_ASSERT_NULL(u);
+     LV_ASSERT_NULL(src);
+ 
++    /* A descriptor that names an OpenGL texture has no pixels to decode.
++     * Wrapping the name costs no upload and no GL call, so it is done again
++     * on every draw and released at the end of the frame like an uncached
++     * image; the texture itself is never deleted here. */
++    if(lv_image_src_get_type(src) == LV_IMAGE_SRC_VARIABLE) {
++        const lv_image_dsc_t * gl_dsc = src;
++        if(gl_dsc->header.flags & LV_IMAGE_FLAGS_GL_TEXTURE) {
++            uint32_t texture = 0;
++            if(gl_dsc->data == NULL || gl_dsc->data_size < sizeof(texture)) {
++                LV_PROFILER_DRAW_END;
++                return -1;
++            }
++            lv_memcpy(&texture, gl_dsc->data, sizeof(texture));
++            int flags = image_flags | NVG_IMAGE_FLIPY;
++            if(gl_dsc->header.flags & LV_IMAGE_FLAGS_PREMULTIPLIED) flags |= NVG_IMAGE_PREMULTIPLIED;
++            int handle = lv_nanovg_image_from_gl_texture(u, texture, gl_dsc->header.w, gl_dsc->header.h, flags);
++            if(handle > 0) {
++                lv_pending_add(u->image_uncached_pending, &handle);
++                if(header) *header = gl_dsc->header;
++            }
++            LV_PROFILER_DRAW_END;
++            return handle;
++        }
++    }
++
+     lv_image_decoder_args_t args;
+     lv_memzero(&args, sizeof(lv_image_decoder_args_t));
+ 

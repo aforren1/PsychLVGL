@@ -8,7 +8,9 @@
  * behind a mapped window on X11, a drawable-less CGL context on macOS) and
  * drives the core layer directly: load GL, init, create widgets, run Update
  * cycles with synthetic input, read the texture back through a framebuffer
- * object, and shut down.
+ * object, and shut down. A second scene covers the phase 2 draw paths: a
+ * shared style, a chart, an image drawn straight from an OpenGL texture, and
+ * a label in a TTF font.
  *
  * It links plv_core only, never MATLAB.
  */
@@ -273,6 +275,211 @@ static int count_non_background(unsigned int tex, int w, int h, int * out_distin
     return n;
 }
 
+/* The whole render framebuffer, read once, so several probes can share it. */
+static unsigned char * read_panel(int w, int h)
+{
+    unsigned char * px = (unsigned char *)malloc((size_t)w * h * 4);
+    GLint saved = 0;
+    if(!px) return NULL;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &saved);
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)plv_display_fbo());
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)saved);
+    return px;
+}
+
+/* Panel coordinates have y down; which framebuffer row holds panel row 0 is
+ * measured, not assumed, and passed in as flip. */
+static const unsigned char * panel_px(const unsigned char * px, int w, int h, int flip,
+                                      int x, int y)
+{
+    int row = flip ? (h - 1 - y) : y;
+    return px + ((size_t)row * w + x) * 4;
+}
+
+static int near_rgb(const unsigned char * p, int r, int g, int b, int tol)
+{
+    return abs(p[0] - r) <= tol && abs(p[1] - g) <= tol && abs(p[2] - b) <= tol;
+}
+
+/* A 32x32 RGBA texture stored bottom row first, as OpenGL and a Psychtoolbox
+ * texture in normal orientation store it: the bottom half red, the top half
+ * blue. ImageFromTexture promises that the blue half shows at the top. */
+static GLuint make_test_texture(void)
+{
+    unsigned char data[32 * 32 * 4];
+    GLuint tex = 0;
+    int r, c;
+    for(r = 0; r < 32; r++) {
+        for(c = 0; c < 32; c++) {
+            unsigned char * p = data + (r * 32 + c) * 4;
+            int top = r >= 16;
+            p[0] = top ? 0 : 255;
+            p[1] = 0;
+            p[2] = top ? 255 : 0;
+            p[3] = 255;
+        }
+    }
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return tex;
+}
+
+/* Phase 2 scene: a style, a chart, a texture image and a TTF label on one
+ * screen, rendered through the same NanoVG path as everything else. */
+static void phase2_scene(int W, int H, double * t)
+{
+    plv_err_t err;
+    lv_obj_t * scr = lv_screen_active();
+    lv_obj_t * box, * chart, * img, * lbl;
+    lv_chart_series_t * ser;
+    lv_style_t * style;
+    double hstyle, hser, himg, hfont = 0.0;
+    GLuint tex;
+    int i, dirty = 0, flip = -1;
+    unsigned char * px;
+    char font_path[1024];
+
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_make(20, 40, 160), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(scr, 255, LV_PART_MAIN);
+
+    /* A shared style through the resource table. */
+    hstyle = plv_style_create(&err);
+    style = (lv_style_t *)plv_res_resolve(hstyle, PLV_RES_STYLE, &err);
+    check("a style handle resolves", style != NULL);
+    if(!style) return;
+    lv_style_set_bg_color(style, lv_color_make(0, 200, 0));
+    lv_style_set_bg_opa(style, 255);
+    lv_style_set_radius(style, 0);
+    lv_style_set_border_width(style, 0);
+    box = lv_obj_create(scr);
+    plv_handle_register(box, 0);
+    lv_obj_remove_style_all(box);
+    lv_obj_add_style(box, style, LV_PART_MAIN);
+    lv_obj_set_pos(box, 0, 0);
+    lv_obj_set_size(box, 100, 60);
+    check("StyleDelete is refused while the style is added",
+          plv_style_delete(hstyle, &err) != 0 && strcmp(err.id, "psychlvgl:InUse") == 0);
+
+    /* A line chart; its series lives in the resource table. */
+    chart = lv_chart_create(scr);
+    plv_handle_register(chart, 0);
+    lv_obj_set_pos(chart, 0, 70);
+    lv_obj_set_size(chart, 200, 120);
+    lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(chart, 10);
+    lv_chart_set_axis_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+    ser = lv_chart_add_series(chart, lv_color_make(255, 0, 0), LV_CHART_AXIS_PRIMARY_Y);
+    hser = plv_res_register(PLV_RES_SERIES, ser, chart, &err);
+    for(i = 0; i < 10; i++) lv_chart_set_next_value(chart, ser, i * 10);
+
+    /* An image drawn straight from an OpenGL texture (vendored patch 0002). */
+    tex = make_test_texture();
+    himg = plv_image_from_texture((uint32_t)tex, 32, 32, &err);
+    check("ImageFromTexture returned a handle", himg != 0.0);
+    img = lv_image_create(scr);
+    plv_handle_register(img, 0);
+    lv_image_set_src(img, plv_res_resolve(himg, PLV_RES_IMAGE, &err));
+    lv_obj_set_pos(img, 220, 20);
+
+    /* A label in a TTF font through tiny_ttf. */
+    snprintf(font_path, sizeof(font_path), "%s/third_party/lvgl/examples/libs/tiny_ttf/Ubuntu-Medium.ttf",
+             PLV_SOURCE_DIR);
+    hfont = plv_font_load(font_path, 32, &err);
+    check("FontLoad read the TTF file", hfont != 0.0);
+    if(hfont == 0.0) printf("  FontLoad: %s %s\n", err.id, err.msg);
+    lbl = lv_label_create(scr);
+    plv_handle_register(lbl, 0);
+    lv_label_set_text(lbl, "TTF");
+    lv_obj_set_style_text_color(lbl, lv_color_make(255, 255, 255), LV_PART_MAIN);
+    if(hfont != 0.0) lv_obj_set_style_text_font(lbl, plv_font_resolve(hfont, &err), LV_PART_MAIN);
+    lv_obj_set_pos(lbl, 220, 120);
+
+    for(i = 0; i < 4; i++) {
+        *t += 0.016;
+        if(plv_update(*t, NULL, 0.0, NULL, 0, &dirty, &err)) {
+            printf("plv_update (phase 2) failed: %s %s\n", err.id, err.msg);
+            failures++;
+            return;
+        }
+    }
+    check("glGetError is clean after the phase 2 scene", glGetError() == GL_NO_ERROR);
+
+    px = read_panel(W, H);
+    if(!px) return;
+
+    /* The styled box fills the top left of the panel; find the row order. */
+    if(near_rgb(panel_px(px, W, H, 0, 20, 20), 0, 200, 0, 12))      flip = 0;
+    else if(near_rgb(panel_px(px, W, H, 1, 20, 20), 0, 200, 0, 12)) flip = 1;
+    check("the styled box shows its style colour", flip >= 0);
+    if(flip < 0) flip = 1;
+    printf("  panel row 0 is framebuffer row %s\n", flip ? "H-1" : "0");
+
+    {
+        const unsigned char * top = panel_px(px, W, H, flip, 236, 26);
+        const unsigned char * bot = panel_px(px, W, H, flip, 236, 46);
+        printf("  texture image top %u %u %u, bottom %u %u %u\n",
+               top[0], top[1], top[2], bot[0], bot[1], bot[2]);
+        check("the texture image is drawn, top half blue", near_rgb(top, 0, 0, 255, 24));
+        check("the texture image is upright, bottom half red", near_rgb(bot, 255, 0, 0, 24));
+    }
+
+    {   /* A chart with a grid and a line is not one flat colour. */
+        int x, y, n = 0;
+        const unsigned char * ref = panel_px(px, W, H, flip, 5, 75);
+        for(y = 72; y < 188; y += 2)
+            for(x = 2; x < 198; x += 2)
+                if(!near_rgb(panel_px(px, W, H, flip, x, y), ref[0], ref[1], ref[2], 8)) n++;
+        printf("  chart pixels that differ from its background: %d\n", n);
+        check("the chart renders a non-flat plot", n > 200);
+    }
+
+    {   /* White TTF glyphs on the blue screen. */
+        int x, y, n = 0;
+        for(y = 120; y < 160 && y < H; y++)
+            for(x = 220; x < 300 && x < W; x++)
+                if(near_rgb(panel_px(px, W, H, flip, x, y), 255, 255, 255, 60)) n++;
+        printf("  TTF label white pixels: %d\n", n);
+        check("the TTF label renders glyphs", n > 50);
+    }
+    free(px);
+
+    /* The GL_TIMESTAMP pair is read a few frames late, so run a few more. */
+    for(i = 0; i < 6; i++) {
+        *t += 0.016;
+        lv_chart_set_next_value(chart, ser, (i * 37) % 100);
+        plv_update(*t, NULL, 0.0, NULL, 0, &dirty, &err);
+    }
+    printf("  GPU time of lv_timer_handler: last %.3f ms, max %.3f ms (0: no GL_TIMESTAMP here)\n",
+           (double)plv_stats()->gpu_last_ns / 1e6, (double)plv_stats()->gpu_max_ns / 1e6);
+    /* Reported, not checked: a software renderer may stamp both ends of a
+     * frame at the same time, and a CI job must not fail on that. The GL
+     * suite checks gpuNs on real hardware. */
+    if((GLAD_GL_VERSION_3_3 || GLAD_GL_ARB_timer_query) && plv_stats()->gpu_max_ns == 0)
+        printf("  note: GL_TIMESTAMP is available but measured 0 ns\n");
+
+    /* Deleting the chart releases its series handle through the delete hook. */
+    lv_obj_delete(chart);
+    check("the series handle died with its chart", plv_res_kind(hser) == PLV_RES_NONE);
+
+    /* The texture stays the caller's: releasing the image must not delete it. */
+    lv_image_set_src(img, NULL);
+    check("ImageDelete succeeds once no object shows the image", plv_image_delete(himg, &err) == 0);
+    *t += 0.016;
+    plv_update(*t, NULL, 0.0, NULL, 0, &dirty, &err);
+    check("the texture survives the image handle", glIsTexture(tex) == GL_TRUE);
+    glDeleteTextures(1, &tex);
+    check("glGetError is clean after the phase 2 teardown", glGetError() == GL_NO_ERROR);
+}
+
 int main(void)
 {
     plv_init_opts_t opts;
@@ -395,6 +602,9 @@ int main(void)
            (double)plv_stats()->update_last_ns / 1e6,
            (double)plv_stats()->update_max_ns / 1e6,
            (unsigned long long)plv_stats()->update_count);
+
+    printf("phase 2 scene\n");
+    phase2_scene(W, H, &t);
 
     plv_shutdown();
     check("plv_shutdown left GL clean", glGetError() == GL_NO_ERROR);

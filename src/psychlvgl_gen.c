@@ -148,6 +148,292 @@ static void plv_op_ButtonCreate(int nlhs, mxArray * plhs[], int nrhs, const mxAr
     plhs[0] = plv_ret_obj(ret);
 }
 
+static void plv_op_ChartAddCursor(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_chart_cursor_t * ret;
+
+    plv_need_args(nrhs, 3, 3, "ChartAddCursor");
+    (void)nlhs;
+    ret = lv_chart_add_cursor(plv_arg_obj(prhs[1], 1), plv_arg_color(prhs[2], 2), (lv_dir_t)plv_arg_enum(prhs[3], 3));
+    plv_check_deferred();
+    plhs[0] = plv_ret_res(ret, PLV_RES_CURSOR, plv_arg_obj(prhs[1], 1));
+}
+
+static void plv_op_ChartAddSeries(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_chart_series_t * ret;
+
+    plv_need_args(nrhs, 3, 3, "ChartAddSeries");
+    (void)nlhs;
+    ret = lv_chart_add_series(plv_arg_obj(prhs[1], 1), plv_arg_color(prhs[2], 2), (lv_chart_axis_t)plv_arg_enum(prhs[3], 3));
+    plv_check_deferred();
+    plhs[0] = plv_ret_res(ret, PLV_RES_SERIES, plv_arg_obj(prhs[1], 1));
+}
+
+static void plv_op_ChartCreate(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_obj_t * ret;
+
+    plv_need_args(nrhs, 1, 1, "ChartCreate");
+    (void)nlhs;
+    ret = lv_chart_create(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = plv_ret_obj(ret);
+}
+
+static void plv_op_ChartGetPointCount(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    uint32_t ret;
+
+    plv_need_args(nrhs, 1, 1, "ChartGetPointCount");
+    (void)nlhs;
+    ret = lv_chart_get_point_count(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ChartGetPressedPoint(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    uint32_t ret;
+
+    plv_need_args(nrhs, 1, 1, "ChartGetPressedPoint");
+    (void)nlhs;
+    ret = lv_chart_get_pressed_point(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ChartGetSeriesColor(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_color_t ret;
+
+    plv_need_args(nrhs, 2, 2, "ChartGetSeriesColor");
+    (void)nlhs;
+    ret = lv_chart_get_series_color(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1));
+    plv_check_deferred();
+    plhs[0] = plv_ret_color(ret);
+}
+
+static void plv_op_ChartGetType(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_chart_type_t ret;
+
+    plv_need_args(nrhs, 1, 1, "ChartGetType");
+    (void)nlhs;
+    ret = lv_chart_get_type(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ChartGetUpdateMode(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_chart_update_mode_t ret;
+
+    plv_need_args(nrhs, 1, 1, "ChartGetUpdateMode");
+    (void)nlhs;
+    ret = lv_chart_get_update_mode(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ChartGetXStartPoint(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    uint32_t ret;
+
+    plv_need_args(nrhs, 2, 2, "ChartGetXStartPoint");
+    (void)nlhs;
+    ret = lv_chart_get_x_start_point(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ChartHideSeries(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartHideSeries");
+    (void)nlhs;
+    lv_chart_hide_series(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1), plv_arg_bool(prhs[3], 3));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartRefresh(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 1, 1, "ChartRefresh");
+    (void)nlhs;
+    lv_chart_refresh(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartRemoveCursor(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ChartRemoveCursor");
+    (void)nlhs;
+    lv_chart_remove_cursor(plv_arg_obj(prhs[1], 1), plv_arg_cursor(prhs, 2, 1));
+    plv_res_release_arg(prhs[2]);
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartRemoveSeries(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ChartRemoveSeries");
+    (void)nlhs;
+    lv_chart_remove_series(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1));
+    plv_res_release_arg(prhs[2]);
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetAllValues(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetAllValues");
+    (void)nlhs;
+    lv_chart_set_all_values(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetAxisMaxValue(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetAxisMaxValue");
+    (void)nlhs;
+    lv_chart_set_axis_max_value(plv_arg_obj(prhs[1], 1), (lv_chart_axis_t)plv_arg_enum(prhs[2], 2), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetAxisMinValue(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetAxisMinValue");
+    (void)nlhs;
+    lv_chart_set_axis_min_value(plv_arg_obj(prhs[1], 1), (lv_chart_axis_t)plv_arg_enum(prhs[2], 2), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetAxisRange(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 4, 4, "ChartSetAxisRange");
+    (void)nlhs;
+    lv_chart_set_axis_range(plv_arg_obj(prhs[1], 1), (lv_chart_axis_t)plv_arg_enum(prhs[2], 2), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647), (int32_t)plv_arg_int(prhs[4], 4, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetCursorPoint(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 4, 4, "ChartSetCursorPoint");
+    (void)nlhs;
+    lv_chart_set_cursor_point(plv_arg_obj(prhs[1], 1), plv_arg_cursor(prhs, 2, 1), plv_arg_series(prhs, 3, 1), (uint32_t)plv_arg_int(prhs[4], 4, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetCursorPosX(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetCursorPosX");
+    (void)nlhs;
+    lv_chart_set_cursor_pos_x(plv_arg_obj(prhs[1], 1), plv_arg_cursor(prhs, 2, 1), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetCursorPosY(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetCursorPosY");
+    (void)nlhs;
+    lv_chart_set_cursor_pos_y(plv_arg_obj(prhs[1], 1), plv_arg_cursor(prhs, 2, 1), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetDivLineCount(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetDivLineCount");
+    (void)nlhs;
+    lv_chart_set_div_line_count(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295), (uint32_t)plv_arg_int(prhs[3], 3, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetNextValue(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetNextValue");
+    (void)nlhs;
+    lv_chart_set_next_value(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetPointCount(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ChartSetPointCount");
+    (void)nlhs;
+    lv_chart_set_point_count(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetSeriesColor(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetSeriesColor");
+    (void)nlhs;
+    lv_chart_set_series_color(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1), plv_arg_color(prhs[3], 3));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetSeriesValueById(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 4, 4, "ChartSetSeriesValueById");
+    (void)nlhs;
+    lv_chart_set_series_value_by_id(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1), (uint32_t)plv_arg_int(prhs[3], 3, 0, 4294967295), (int32_t)plv_arg_int(prhs[4], 4, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetSeriesValues(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_i32vec_t vbuf0;
+    const int32_t * vec0;
+
+    plv_need_args(nrhs, 3, 3, "ChartSetSeriesValues");
+    (void)nlhs;
+    vec0 = plv_arg_i32vec(prhs[3], 3, &vbuf0, 0, 0);
+    lv_chart_set_series_values(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1), vec0, vbuf0.n);
+    plv_i32vec_free(&vbuf0);
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetType(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ChartSetType");
+    (void)nlhs;
+    lv_chart_set_type(plv_arg_obj(prhs[1], 1), (lv_chart_type_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetUpdateMode(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ChartSetUpdateMode");
+    (void)nlhs;
+    lv_chart_set_update_mode(plv_arg_obj(prhs[1], 1), (lv_chart_update_mode_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetXStartPoint(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ChartSetXStartPoint");
+    (void)nlhs;
+    lv_chart_set_x_start_point(plv_arg_obj(prhs[1], 1), plv_arg_series(prhs, 2, 1), (uint32_t)plv_arg_int(prhs[3], 3, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_CheckboxCreate(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     lv_obj_t * ret;
@@ -291,6 +577,151 @@ static void plv_op_DropdownSetText(int nlhs, mxArray * plhs[], int nrhs, const m
     (void)nlhs;
     lv_dropdown_set_text(plv_arg_obj(prhs[1], 1), plv_arg_str(prhs[2], 2, &sbuf0));
     plv_strbuf_free(&sbuf0);
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageCreate(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    lv_obj_t * ret;
+
+    plv_need_args(nrhs, 1, 1, "ImageCreate");
+    (void)nlhs;
+    ret = lv_image_create(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = plv_ret_obj(ret);
+}
+
+static void plv_op_ImageGetRotation(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    int32_t ret;
+
+    plv_need_args(nrhs, 1, 1, "ImageGetRotation");
+    (void)nlhs;
+    ret = lv_image_get_rotation(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ImageGetScale(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    int32_t ret;
+
+    plv_need_args(nrhs, 1, 1, "ImageGetScale");
+    (void)nlhs;
+    ret = lv_image_get_scale(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ImageGetSrcHeight(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    int32_t ret;
+
+    plv_need_args(nrhs, 1, 1, "ImageGetSrcHeight");
+    (void)nlhs;
+    ret = lv_image_get_src_height(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ImageGetSrcWidth(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    int32_t ret;
+
+    plv_need_args(nrhs, 1, 1, "ImageGetSrcWidth");
+    (void)nlhs;
+    ret = lv_image_get_src_width(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = mxCreateDoubleScalar((double)ret);
+}
+
+static void plv_op_ImageSetAntialias(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetAntialias");
+    (void)nlhs;
+    lv_image_set_antialias(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetInnerAlign(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetInnerAlign");
+    (void)nlhs;
+    lv_image_set_inner_align(plv_arg_obj(prhs[1], 1), (lv_image_align_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetOffsetX(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetOffsetX");
+    (void)nlhs;
+    lv_image_set_offset_x(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetOffsetY(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetOffsetY");
+    (void)nlhs;
+    lv_image_set_offset_y(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetPivot(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 3, 3, "ImageSetPivot");
+    (void)nlhs;
+    lv_image_set_pivot(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetRotation(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetRotation");
+    (void)nlhs;
+    lv_image_set_rotation(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetScale(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetScale");
+    (void)nlhs;
+    lv_image_set_scale(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetScaleX(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetScaleX");
+    (void)nlhs;
+    lv_image_set_scale_x(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetScaleY(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetScaleY");
+    (void)nlhs;
+    lv_image_set_scale_y(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetSrc(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetSrc");
+    (void)nlhs;
+    lv_image_set_src(plv_arg_obj(prhs[1], 1), plv_arg_image_src(prhs[2], 2));
     plv_check_deferred();
     (void)plhs;
 }
@@ -2385,6 +2816,35 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "BarSetStartValue", plv_op_BarSetStartValue },
     { "BarSetValue", plv_op_BarSetValue },
     { "ButtonCreate", plv_op_ButtonCreate },
+    { "ChartAddCursor", plv_op_ChartAddCursor },
+    { "ChartAddSeries", plv_op_ChartAddSeries },
+    { "ChartCreate", plv_op_ChartCreate },
+    { "ChartGetPointCount", plv_op_ChartGetPointCount },
+    { "ChartGetPressedPoint", plv_op_ChartGetPressedPoint },
+    { "ChartGetSeriesColor", plv_op_ChartGetSeriesColor },
+    { "ChartGetType", plv_op_ChartGetType },
+    { "ChartGetUpdateMode", plv_op_ChartGetUpdateMode },
+    { "ChartGetXStartPoint", plv_op_ChartGetXStartPoint },
+    { "ChartHideSeries", plv_op_ChartHideSeries },
+    { "ChartRefresh", plv_op_ChartRefresh },
+    { "ChartRemoveCursor", plv_op_ChartRemoveCursor },
+    { "ChartRemoveSeries", plv_op_ChartRemoveSeries },
+    { "ChartSetAllValues", plv_op_ChartSetAllValues },
+    { "ChartSetAxisMaxValue", plv_op_ChartSetAxisMaxValue },
+    { "ChartSetAxisMinValue", plv_op_ChartSetAxisMinValue },
+    { "ChartSetAxisRange", plv_op_ChartSetAxisRange },
+    { "ChartSetCursorPoint", plv_op_ChartSetCursorPoint },
+    { "ChartSetCursorPosX", plv_op_ChartSetCursorPosX },
+    { "ChartSetCursorPosY", plv_op_ChartSetCursorPosY },
+    { "ChartSetDivLineCount", plv_op_ChartSetDivLineCount },
+    { "ChartSetNextValue", plv_op_ChartSetNextValue },
+    { "ChartSetPointCount", plv_op_ChartSetPointCount },
+    { "ChartSetSeriesColor", plv_op_ChartSetSeriesColor },
+    { "ChartSetSeriesValueById", plv_op_ChartSetSeriesValueById },
+    { "ChartSetSeriesValues", plv_op_ChartSetSeriesValues },
+    { "ChartSetType", plv_op_ChartSetType },
+    { "ChartSetUpdateMode", plv_op_ChartSetUpdateMode },
+    { "ChartSetXStartPoint", plv_op_ChartSetXStartPoint },
     { "CheckboxCreate", plv_op_CheckboxCreate },
     { "CheckboxGetText", plv_op_CheckboxGetText },
     { "CheckboxSetText", plv_op_CheckboxSetText },
@@ -2399,6 +2859,21 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "DropdownSetOptions", plv_op_DropdownSetOptions },
     { "DropdownSetSelected", plv_op_DropdownSetSelected },
     { "DropdownSetText", plv_op_DropdownSetText },
+    { "ImageCreate", plv_op_ImageCreate },
+    { "ImageGetRotation", plv_op_ImageGetRotation },
+    { "ImageGetScale", plv_op_ImageGetScale },
+    { "ImageGetSrcHeight", plv_op_ImageGetSrcHeight },
+    { "ImageGetSrcWidth", plv_op_ImageGetSrcWidth },
+    { "ImageSetAntialias", plv_op_ImageSetAntialias },
+    { "ImageSetInnerAlign", plv_op_ImageSetInnerAlign },
+    { "ImageSetOffsetX", plv_op_ImageSetOffsetX },
+    { "ImageSetOffsetY", plv_op_ImageSetOffsetY },
+    { "ImageSetPivot", plv_op_ImageSetPivot },
+    { "ImageSetRotation", plv_op_ImageSetRotation },
+    { "ImageSetScale", plv_op_ImageSetScale },
+    { "ImageSetScaleX", plv_op_ImageSetScaleX },
+    { "ImageSetScaleY", plv_op_ImageSetScaleY },
+    { "ImageSetSrc", plv_op_ImageSetSrc },
     { "LabelCreate", plv_op_LabelCreate },
     { "LabelGetText", plv_op_LabelGetText },
     { "LabelSetLongMode", plv_op_LabelSetLongMode },
@@ -2608,4 +3083,773 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "TextareaSetText", plv_op_TextareaSetText },
 };
 
-const int plv_gen_op_count = 236;
+const int plv_gen_op_count = 280;
+
+/* StyleSetProp: one setter per style property, sorted by key. */
+
+static void plv_sp_align(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_align(s, (lv_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_anim_duration(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_anim_duration(s, (uint32_t)plv_arg_int(v, pos, 0, 4294967295));
+}
+
+static void plv_sp_arc_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_arc_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_arc_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_arc_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_arc_rounded(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_arc_rounded(s, plv_arg_bool(v, pos));
+}
+
+static void plv_sp_arc_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_arc_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_base_dir(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_base_dir(s, (lv_base_dir_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_bg_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_bg_grad_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_grad_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_bg_grad_dir(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_grad_dir(s, (lv_grad_dir_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_bg_grad_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_grad_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_bg_grad_stop(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_grad_stop(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_bg_image_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_image_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_bg_image_recolor(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_image_recolor(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_bg_image_recolor_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_image_recolor_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_bg_image_tiled(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_image_tiled(s, plv_arg_bool(v, pos));
+}
+
+static void plv_sp_bg_main_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_main_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_bg_main_stop(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_main_stop(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_bg_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_bg_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_blend_mode(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_blend_mode(s, (lv_blend_mode_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_blur_backdrop(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_blur_backdrop(s, plv_arg_bool(v, pos));
+}
+
+static void plv_sp_blur_quality(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_blur_quality(s, (lv_blur_quality_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_blur_radius(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_blur_radius(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_border_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_border_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_border_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_border_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_border_post(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_border_post(s, plv_arg_bool(v, pos));
+}
+
+static void plv_sp_border_side(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_border_side(s, (lv_border_side_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_border_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_border_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_clip_corner(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_clip_corner(s, plv_arg_bool(v, pos));
+}
+
+static void plv_sp_color_filter_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_color_filter_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_drop_shadow_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_drop_shadow_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_drop_shadow_offset_x(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_drop_shadow_offset_x(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_drop_shadow_offset_y(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_drop_shadow_offset_y(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_drop_shadow_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_drop_shadow_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_drop_shadow_quality(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_drop_shadow_quality(s, (lv_blur_quality_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_drop_shadow_radius(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_drop_shadow_radius(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_flex_cross_place(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_flex_cross_place(s, (lv_flex_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_flex_flow(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_flex_flow(s, (lv_flex_flow_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_flex_grow(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_flex_grow(s, (uint8_t)plv_arg_int(v, pos, 0, 255));
+}
+
+static void plv_sp_flex_main_place(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_flex_main_place(s, (lv_flex_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_flex_track_place(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_flex_track_place(s, (lv_flex_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_grid_cell_column_pos(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_grid_cell_column_pos(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_grid_cell_column_span(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_grid_cell_column_span(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_grid_cell_row_pos(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_grid_cell_row_pos(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_grid_cell_row_span(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_grid_cell_row_span(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_grid_cell_x_align(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_grid_cell_x_align(s, (lv_grid_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_grid_cell_y_align(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_grid_cell_y_align(s, (lv_grid_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_grid_column_align(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_grid_column_align(s, (lv_grid_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_grid_row_align(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_grid_row_align(s, (lv_grid_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_height(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_height(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_image_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_image_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_image_recolor(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_image_recolor(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_image_recolor_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_image_recolor_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_layout(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_layout(s, (uint16_t)plv_arg_int(v, pos, 0, 65535));
+}
+
+static void plv_sp_length(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_length(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_line_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_line_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_line_dash_gap(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_line_dash_gap(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_line_dash_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_line_dash_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_line_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_line_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_line_rounded(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_line_rounded(s, plv_arg_bool(v, pos));
+}
+
+static void plv_sp_line_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_line_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_margin_all(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_margin_all(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_margin_bottom(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_margin_bottom(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_margin_hor(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_margin_hor(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_margin_left(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_margin_left(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_margin_right(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_margin_right(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_margin_top(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_margin_top(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_margin_ver(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_margin_ver(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_max_height(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_max_height(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_max_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_max_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_min_height(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_min_height(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_min_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_min_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_opa_layered(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_opa_layered(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_outline_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_outline_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_outline_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_outline_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_outline_pad(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_outline_pad(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_outline_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_outline_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_all(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_all(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_bottom(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_bottom(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_column(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_column(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_gap(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_gap(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_hor(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_hor(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_left(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_left(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_radial(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_radial(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_right(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_right(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_row(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_row(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_top(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_top(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_pad_ver(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_pad_ver(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_radial_offset(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_radial_offset(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_radius(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_radius(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_recolor(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_recolor(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_recolor_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_recolor_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_rotary_sensitivity(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_rotary_sensitivity(s, (uint32_t)plv_arg_int(v, pos, 0, 4294967295));
+}
+
+static void plv_sp_shadow_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_shadow_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_shadow_offset_x(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_shadow_offset_x(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_shadow_offset_y(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_shadow_offset_y(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_shadow_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_shadow_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_shadow_spread(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_shadow_spread(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_shadow_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_shadow_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_text_align(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_align(s, (lv_text_align_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_text_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_text_decor(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_decor(s, (lv_text_decor_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_text_font(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_font(s, plv_arg_font(v, pos));
+}
+
+static void plv_sp_text_leading_trim(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_leading_trim(s, (lv_text_leading_trim_t)plv_arg_enum(v, pos));
+}
+
+static void plv_sp_text_letter_space(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_letter_space(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_text_line_space(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_line_space(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_text_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_text_outline_stroke_color(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_outline_stroke_color(s, plv_arg_color(v, pos));
+}
+
+static void plv_sp_text_outline_stroke_opa(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_outline_stroke_opa(s, (lv_opa_t)plv_arg_opa(v, pos));
+}
+
+static void plv_sp_text_outline_stroke_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_text_outline_stroke_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_height(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_height(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_pivot_x(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_pivot_x(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_pivot_y(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_pivot_y(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_rotation(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_rotation(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_scale(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_scale(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_scale_x(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_scale_x(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_scale_y(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_scale_y(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_skew_x(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_skew_x(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_skew_y(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_skew_y(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_transform_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_transform_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_translate_radial(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_translate_radial(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_translate_x(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_translate_x(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_translate_y(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_translate_y(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_width(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_width(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_x(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_x(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+static void plv_sp_y(lv_style_t * s, const mxArray * v, int pos)
+{
+    lv_style_set_y(s, (int32_t)plv_arg_int(v, pos, (-2147483647 - 1), 2147483647));
+}
+
+const plv_style_prop_entry_t plv_style_props[] = {
+    { "align", plv_sp_align },
+    { "animduration", plv_sp_anim_duration },
+    { "arccolor", plv_sp_arc_color },
+    { "arcopa", plv_sp_arc_opa },
+    { "arcrounded", plv_sp_arc_rounded },
+    { "arcwidth", plv_sp_arc_width },
+    { "basedir", plv_sp_base_dir },
+    { "bgcolor", plv_sp_bg_color },
+    { "bggradcolor", plv_sp_bg_grad_color },
+    { "bggraddir", plv_sp_bg_grad_dir },
+    { "bggradopa", plv_sp_bg_grad_opa },
+    { "bggradstop", plv_sp_bg_grad_stop },
+    { "bgimageopa", plv_sp_bg_image_opa },
+    { "bgimagerecolor", plv_sp_bg_image_recolor },
+    { "bgimagerecoloropa", plv_sp_bg_image_recolor_opa },
+    { "bgimagetiled", plv_sp_bg_image_tiled },
+    { "bgmainopa", plv_sp_bg_main_opa },
+    { "bgmainstop", plv_sp_bg_main_stop },
+    { "bgopa", plv_sp_bg_opa },
+    { "blendmode", plv_sp_blend_mode },
+    { "blurbackdrop", plv_sp_blur_backdrop },
+    { "blurquality", plv_sp_blur_quality },
+    { "blurradius", plv_sp_blur_radius },
+    { "bordercolor", plv_sp_border_color },
+    { "borderopa", plv_sp_border_opa },
+    { "borderpost", plv_sp_border_post },
+    { "borderside", plv_sp_border_side },
+    { "borderwidth", plv_sp_border_width },
+    { "clipcorner", plv_sp_clip_corner },
+    { "colorfilteropa", plv_sp_color_filter_opa },
+    { "dropshadowcolor", plv_sp_drop_shadow_color },
+    { "dropshadowoffsetx", plv_sp_drop_shadow_offset_x },
+    { "dropshadowoffsety", plv_sp_drop_shadow_offset_y },
+    { "dropshadowopa", plv_sp_drop_shadow_opa },
+    { "dropshadowquality", plv_sp_drop_shadow_quality },
+    { "dropshadowradius", plv_sp_drop_shadow_radius },
+    { "flexcrossplace", plv_sp_flex_cross_place },
+    { "flexflow", plv_sp_flex_flow },
+    { "flexgrow", plv_sp_flex_grow },
+    { "flexmainplace", plv_sp_flex_main_place },
+    { "flextrackplace", plv_sp_flex_track_place },
+    { "gridcellcolumnpos", plv_sp_grid_cell_column_pos },
+    { "gridcellcolumnspan", plv_sp_grid_cell_column_span },
+    { "gridcellrowpos", plv_sp_grid_cell_row_pos },
+    { "gridcellrowspan", plv_sp_grid_cell_row_span },
+    { "gridcellxalign", plv_sp_grid_cell_x_align },
+    { "gridcellyalign", plv_sp_grid_cell_y_align },
+    { "gridcolumnalign", plv_sp_grid_column_align },
+    { "gridrowalign", plv_sp_grid_row_align },
+    { "height", plv_sp_height },
+    { "imageopa", plv_sp_image_opa },
+    { "imagerecolor", plv_sp_image_recolor },
+    { "imagerecoloropa", plv_sp_image_recolor_opa },
+    { "layout", plv_sp_layout },
+    { "length", plv_sp_length },
+    { "linecolor", plv_sp_line_color },
+    { "linedashgap", plv_sp_line_dash_gap },
+    { "linedashwidth", plv_sp_line_dash_width },
+    { "lineopa", plv_sp_line_opa },
+    { "linerounded", plv_sp_line_rounded },
+    { "linewidth", plv_sp_line_width },
+    { "marginall", plv_sp_margin_all },
+    { "marginbottom", plv_sp_margin_bottom },
+    { "marginhor", plv_sp_margin_hor },
+    { "marginleft", plv_sp_margin_left },
+    { "marginright", plv_sp_margin_right },
+    { "margintop", plv_sp_margin_top },
+    { "marginver", plv_sp_margin_ver },
+    { "maxheight", plv_sp_max_height },
+    { "maxwidth", plv_sp_max_width },
+    { "minheight", plv_sp_min_height },
+    { "minwidth", plv_sp_min_width },
+    { "opa", plv_sp_opa },
+    { "opalayered", plv_sp_opa_layered },
+    { "outlinecolor", plv_sp_outline_color },
+    { "outlineopa", plv_sp_outline_opa },
+    { "outlinepad", plv_sp_outline_pad },
+    { "outlinewidth", plv_sp_outline_width },
+    { "padall", plv_sp_pad_all },
+    { "padbottom", plv_sp_pad_bottom },
+    { "padcolumn", plv_sp_pad_column },
+    { "padgap", plv_sp_pad_gap },
+    { "padhor", plv_sp_pad_hor },
+    { "padleft", plv_sp_pad_left },
+    { "padradial", plv_sp_pad_radial },
+    { "padright", plv_sp_pad_right },
+    { "padrow", plv_sp_pad_row },
+    { "padtop", plv_sp_pad_top },
+    { "padver", plv_sp_pad_ver },
+    { "radialoffset", plv_sp_radial_offset },
+    { "radius", plv_sp_radius },
+    { "recolor", plv_sp_recolor },
+    { "recoloropa", plv_sp_recolor_opa },
+    { "rotarysensitivity", plv_sp_rotary_sensitivity },
+    { "shadowcolor", plv_sp_shadow_color },
+    { "shadowoffsetx", plv_sp_shadow_offset_x },
+    { "shadowoffsety", plv_sp_shadow_offset_y },
+    { "shadowopa", plv_sp_shadow_opa },
+    { "shadowspread", plv_sp_shadow_spread },
+    { "shadowwidth", plv_sp_shadow_width },
+    { "textalign", plv_sp_text_align },
+    { "textcolor", plv_sp_text_color },
+    { "textdecor", plv_sp_text_decor },
+    { "textfont", plv_sp_text_font },
+    { "textleadingtrim", plv_sp_text_leading_trim },
+    { "textletterspace", plv_sp_text_letter_space },
+    { "textlinespace", plv_sp_text_line_space },
+    { "textopa", plv_sp_text_opa },
+    { "textoutlinestrokecolor", plv_sp_text_outline_stroke_color },
+    { "textoutlinestrokeopa", plv_sp_text_outline_stroke_opa },
+    { "textoutlinestrokewidth", plv_sp_text_outline_stroke_width },
+    { "transformheight", plv_sp_transform_height },
+    { "transformpivotx", plv_sp_transform_pivot_x },
+    { "transformpivoty", plv_sp_transform_pivot_y },
+    { "transformrotation", plv_sp_transform_rotation },
+    { "transformscale", plv_sp_transform_scale },
+    { "transformscalex", plv_sp_transform_scale_x },
+    { "transformscaley", plv_sp_transform_scale_y },
+    { "transformskewx", plv_sp_transform_skew_x },
+    { "transformskewy", plv_sp_transform_skew_y },
+    { "transformwidth", plv_sp_transform_width },
+    { "translateradial", plv_sp_translate_radial },
+    { "translatex", plv_sp_translate_x },
+    { "translatey", plv_sp_translate_y },
+    { "width", plv_sp_width },
+    { "x", plv_sp_x },
+    { "y", plv_sp_y },
+};
+
+const int plv_style_prop_count = 127;

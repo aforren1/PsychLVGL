@@ -259,7 +259,7 @@ f = PsychLVGL('FontLoad', 'C:\Windows\Fonts\arial.ttf', 24);
 lbl = PsychLVGL('LabelCreate', scr);
 PsychLVGL('ObjSetStyleTextFont', lbl, f);
 
-tex = Screen('MakeTexture', win, imread('face.png'), [], 1, [], 1);
+tex = Screen('MakeTexture', win, imread('face.png'), [], 1);
 img = PsychLVGLImageFromTexture(win, tex);
 PsychLVGL('ImageSetSrc', PsychLVGL('ImageCreate', scr), img);
 
@@ -267,9 +267,11 @@ PsychLVGL('ImageSetSrc', PsychLVGL('ImageCreate', scr), img);
 PsychLVGL('ChartSetNextValue', ch, ser, round(100 * contrast));
 ```
 
-A texture image needs a `GL_TEXTURE_2D` texture in upright orientation, which
-is what `specialFlags` 1 with `textureOrientation` 1 gives. The texture stays
-yours: keep it open while the image is shown, and after you change its
+A texture image needs a `GL_TEXTURE_2D` texture, which is what `specialFlags`
+1 gives. Either storage order works: the default, which holds the matrix
+transposed, and `textureOrientation` 1 or 2, which holds it upright. The
+image shows the matrix as `Screen('DrawTexture')` does, columns wide and rows
+high. Texture images do not tile. The texture stays yours: keep it open while the image is shown, and after you change its
 contents call `PsychLVGL('ObjInvalidate', imageObj)`. `PsychLVGLClose` frees
 every chart series, style, image and font of the session, but not the
 Psychtoolbox textures.
@@ -366,7 +368,7 @@ shell.
 | Patch | What it does | SPEC |
 |---|---|---|
 | `0001-opengles-driver-gl21-glsl120.patch` | Adds a GLSL 1.20 shader path and a luminance texture fallback to LVGL's OpenGL driver. The GL2 build needs it on the OpenGL 2.1 contexts Psychtoolbox creates on macOS; upstream LVGL needs OpenGL 3.0. | D38 |
-| `0002-nanovg-image-from-gl-texture.patch` | Adds the image flag `LV_IMAGE_FLAGS_GL_TEXTURE`, which lets an image descriptor name an OpenGL texture. The NanoVG draw unit then samples the texture directly. `ImageFromTexture` needs it. | D41 |
+| `0002-nanovg-image-from-gl-texture.patch` | Adds the image flags `LV_IMAGE_FLAGS_GL_TEXTURE` and `LV_IMAGE_FLAGS_GL_TEXTURE_TRANSPOSED`, which let an image descriptor name an OpenGL texture stored upright or transposed. The NanoVG draw unit then samples the texture directly. `ImageFromTexture` needs it. | D41 |
 
 After a build, `git status` shows `third_party/lvgl` as modified. That is the
 applied patches, not something to commit. To see the pristine tree again, run

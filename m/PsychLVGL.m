@@ -34,7 +34,7 @@ function varargout = PsychLVGL(varargin) %#ok<STOUT,INUSD>
 %     PsychLVGL('ObjAddStyle', h, style [, selector])
 %     PsychLVGL('ObjRemoveStyle', h, style [, selector])
 %     PsychLVGL('ObjRemoveStyleAll', h)
-%     img = PsychLVGL('ImageFromTexture', glTex, w, h)
+%     img = PsychLVGL('ImageFromTexture', glTex, w, h [, transposed])
 %     img = PsychLVGL('ImageFromArray', uint8Image)
 %     PsychLVGL('ImageDelete', img)
 %     font = PsychLVGL('FontLoad', ttfPath, px)

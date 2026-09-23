@@ -753,7 +753,7 @@ HAND_WRITTEN = [
     ("ObjAddStyle", "PsychLVGL('ObjAddStyle', h, style [, selector])"),
     ("ObjRemoveStyle", "PsychLVGL('ObjRemoveStyle', h, style [, selector])"),
     ("ObjRemoveStyleAll", "PsychLVGL('ObjRemoveStyleAll', h)"),
-    ("ImageFromTexture", "img = PsychLVGL('ImageFromTexture', glTex, w, h)"),
+    ("ImageFromTexture", "img = PsychLVGL('ImageFromTexture', glTex, w, h [, transposed])"),
     ("ImageFromArray", "img = PsychLVGL('ImageFromArray', uint8Image)"),
     ("ImageDelete", "PsychLVGL('ImageDelete', img)"),
     ("FontLoad", "font = PsychLVGL('FontLoad', ttfPath, px)"),

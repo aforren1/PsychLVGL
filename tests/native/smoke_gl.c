@@ -332,17 +332,51 @@ static GLuint make_test_texture(void)
     return tex;
 }
 
+/* The quadrant colours of a 24x16 test image: top left blue, top right cyan,
+ * bottom left red, bottom right yellow. A transpose and a flip give different
+ * layouts, so the probes tell them apart. */
+static void quadrant_rgb(int row, int col, unsigned char * p)
+{
+    int top = row < 8, left = col < 12;
+    p[0] = top ? 0 : 255;
+    p[1] = left ? 0 : 255;
+    p[2] = top ? 255 : 0;
+    p[3] = 255;
+}
+
+/* The same image stored the way Psychtoolbox stores a texture made from a
+ * MATLAB matrix: column-major memory, so texel row c holds image column c.
+ * The texture is 16 texels wide and 24 high. Like a Psychtoolbox texture it
+ * keeps the default minification filter, which asks for mipmaps it does not
+ * have; patch 0002 has to make it complete before it samples. */
+static GLuint make_transposed_texture(void)
+{
+    unsigned char data[16 * 24 * 4];
+    GLuint tex = 0;
+    int r, c;
+    for(c = 0; c < 24; c++)
+        for(r = 0; r < 16; r++)
+            quadrant_rgb(r, c, data + (c * 16 + r) * 4);
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 16, 24, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return tex;
+}
+
 /* Phase 2 scene: a style, a chart, a texture image and a TTF label on one
  * screen, rendered through the same NanoVG path as everything else. */
 static void phase2_scene(int W, int H, double * t)
 {
     plv_err_t err;
     lv_obj_t * scr = lv_screen_active();
-    lv_obj_t * box, * chart, * img, * lbl;
+    lv_obj_t * box, * chart, * img, * img_t, * lbl;
     lv_chart_series_t * ser;
     lv_style_t * style;
-    double hstyle, hser, himg, hfont = 0.0;
-    GLuint tex;
+    double hstyle, hser, himg, himg_t, hfont = 0.0;
+    GLuint tex, tex_t;
     int i, dirty = 0, flip = -1;
     unsigned char * px;
     char font_path[1024];
@@ -375,6 +409,9 @@ static void phase2_scene(int W, int H, double * t)
     lv_obj_set_pos(chart, 0, 70);
     lv_obj_set_size(chart, 200, 120);
     lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
+    /* A wide line gives the check below hundreds of series pixels on any
+     * rasterizer, where a 1 pixel line depends on how it is antialiased. */
+    lv_obj_set_style_line_width(chart, 6, LV_PART_ITEMS);
     lv_chart_set_point_count(chart, 10);
     lv_chart_set_axis_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
     ser = lv_chart_add_series(chart, lv_color_make(255, 0, 0), LV_CHART_AXIS_PRIMARY_Y);
@@ -383,12 +420,21 @@ static void phase2_scene(int W, int H, double * t)
 
     /* An image drawn straight from an OpenGL texture (vendored patch 0002). */
     tex = make_test_texture();
-    himg = plv_image_from_texture((uint32_t)tex, 32, 32, &err);
+    himg = plv_image_from_texture((uint32_t)tex, 32, 32, 0, &err);
     check("ImageFromTexture returned a handle", himg != 0.0);
     img = lv_image_create(scr);
     plv_handle_register(img, 0);
     lv_image_set_src(img, plv_res_resolve(himg, PLV_RES_IMAGE, &err));
     lv_obj_set_pos(img, 220, 20);
+
+    /* The same path for a transposed texture: shown 24 wide, 16 high. */
+    tex_t = make_transposed_texture();
+    himg_t = plv_image_from_texture((uint32_t)tex_t, 24, 16, 1, &err);
+    check("ImageFromTexture took a transposed texture", himg_t != 0.0);
+    img_t = lv_image_create(scr);
+    plv_handle_register(img_t, 0);
+    lv_image_set_src(img_t, plv_res_resolve(himg_t, PLV_RES_IMAGE, &err));
+    lv_obj_set_pos(img_t, 260, 20);
 
     /* A label in a TTF font through tiny_ttf. */
     snprintf(font_path, sizeof(font_path), "%s/third_party/lvgl/examples/libs/tiny_ttf/Ubuntu-Medium.ttf",
@@ -432,14 +478,37 @@ static void phase2_scene(int W, int H, double * t)
         check("the texture image is upright, bottom half red", near_rgb(bot, 255, 0, 0, 24));
     }
 
-    {   /* A chart with a grid and a line is not one flat colour. */
+    {
+        unsigned char want[4];
+        static const int probe[4][2] = { { 2, 2 }, { 21, 2 }, { 2, 13 }, { 21, 13 } };
+        static const char * const names[4] = {
+            "the transposed texture shows top left blue",
+            "the transposed texture shows top right cyan",
+            "the transposed texture shows bottom left red",
+            "the transposed texture shows bottom right yellow"
+        };
+        int q;
+        for(q = 0; q < 4; q++) {
+            const unsigned char * p = panel_px(px, W, H, flip, 260 + probe[q][0], 20 + probe[q][1]);
+            quadrant_rgb(probe[q][1], probe[q][0], want);
+            printf("  transposed image (%d,%d): %u %u %u\n", probe[q][0], probe[q][1], p[0], p[1], p[2]);
+            check(names[q], near_rgb(p, want[0], want[1], want[2], 24));
+        }
+    }
+
+    {   /* Count the red series pixels, every pixel of the chart area. Nothing
+         * else in the scene is red, so a chart drawn without its series
+         * gives 0. A 6 px line over the 10 points is about 1200 pixels; 300
+         * leaves room for any rasterizer and still fails without it. */
         int x, y, n = 0;
-        const unsigned char * ref = panel_px(px, W, H, flip, 5, 75);
-        for(y = 72; y < 188; y += 2)
-            for(x = 2; x < 198; x += 2)
-                if(!near_rgb(panel_px(px, W, H, flip, x, y), ref[0], ref[1], ref[2], 8)) n++;
-        printf("  chart pixels that differ from its background: %d\n", n);
-        check("the chart renders a non-flat plot", n > 200);
+        for(y = 70; y < 190; y++) {
+            for(x = 0; x < 200; x++) {
+                const unsigned char * p = panel_px(px, W, H, flip, x, y);
+                if(p[0] > 180 && p[1] < 90 && p[2] < 90) n++;
+            }
+        }
+        printf("  chart series pixels: %d\n", n);
+        check("the chart renders its series", n > 300);
     }
 
     {   /* White TTF glyphs on the blue screen. */
@@ -473,10 +542,13 @@ static void phase2_scene(int W, int H, double * t)
     /* The texture stays the caller's: releasing the image must not delete it. */
     lv_image_set_src(img, NULL);
     check("ImageDelete succeeds once no object shows the image", plv_image_delete(himg, &err) == 0);
+    lv_image_set_src(img_t, NULL);
+    plv_image_delete(himg_t, &err);
     *t += 0.016;
     plv_update(*t, NULL, 0.0, NULL, 0, &dirty, &err);
     check("the texture survives the image handle", glIsTexture(tex) == GL_TRUE);
     glDeleteTextures(1, &tex);
+    glDeleteTextures(1, &tex_t);
     check("glGetError is clean after the phase 2 teardown", glGetError() == GL_NO_ERROR);
 }
 

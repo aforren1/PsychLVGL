@@ -1,8 +1,8 @@
 diff --git a/include/lvgl/draw/lv_image_dsc.h b/include/lvgl/draw/lv_image_dsc.h
-index 52b196b..5bf0f3d 100644
+index 52b196b..2ba8d0b 100644
 --- a/include/lvgl/draw/lv_image_dsc.h
 +++ b/include/lvgl/draw/lv_image_dsc.h
-@@ -76,6 +76,15 @@ typedef enum _lvimage_flags_t {
+@@ -76,6 +76,23 @@ typedef enum _lvimage_flags_t {
       */
      LV_IMAGE_FLAGS_CUSTOM_DRAW      = 0x0040,
  
@@ -15,14 +15,22 @@ index 52b196b..5bf0f3d 100644
 +     */
 +    LV_IMAGE_FLAGS_GL_TEXTURE       = 0x0080,
 +
++    /**
++     * With `LV_IMAGE_FLAGS_GL_TEXTURE`: the texture holds the image
++     * transposed, texel column i being image row i, as a texture filled from
++     * a column-major matrix does. `header.w` and `header.h` are the size of
++     * the image as shown, so the texture is `h` texels wide and `w` high.
++     */
++    LV_IMAGE_FLAGS_GL_TEXTURE_TRANSPOSED = 0x0004,
++
      /**
       * Flags reserved for user, lvgl won't use these bits.
       */
 diff --git a/src/draw/nanovg/lv_draw_nanovg.c b/src/draw/nanovg/lv_draw_nanovg.c
-index 176d1c6..d78570c 100644
+index 176d1c6..af75321 100644
 --- a/src/draw/nanovg/lv_draw_nanovg.c
 +++ b/src/draw/nanovg/lv_draw_nanovg.c
-@@ -139,6 +139,24 @@ int lv_nanovg_fb_get_image_handle(struct NVGLUframebuffer * fb)
+@@ -139,6 +139,38 @@ int lv_nanovg_fb_get_image_handle(struct NVGLUframebuffer * fb)
      return fb->image;
  }
  
@@ -30,6 +38,20 @@ index 176d1c6..d78570c 100644
 +                                    int image_flags)
 +{
 +    LV_ASSERT_NULL(u);
++
++    /* A texture without mipmaps whose minification filter still asks for
++     * them is incomplete and samples as black. Psychtoolbox leaves the
++     * OpenGL default filter on a texture made from a matrix and sets its own
++     * filter on every draw, so switching to GL_LINEAR here is harmless.
++     * Binding through glnvg__bindTexture keeps NanoVG's binding cache right. */
++    GLNVGcontext * gl = (GLNVGcontext *)nvgInternalParams(u->vg)->userPtr;
++    GLint min_filter = GL_LINEAR;
++    glActiveTexture(GL_TEXTURE0);
++    glnvg__bindTexture(gl, texture);
++    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &min_filter);
++    if(min_filter != GL_LINEAR && min_filter != GL_NEAREST)
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
++
 +    /* NODELETE: the texture belongs to the caller, so releasing the NanoVG
 +     * image must not delete the OpenGL name. */
 +#if defined(NANOVG_GL2_IMPLEMENTATION)
@@ -47,6 +69,50 @@ index 176d1c6..d78570c 100644
  /**********************
   *   STATIC FUNCTIONS
   **********************/
+diff --git a/src/draw/nanovg/lv_draw_nanovg_image.c b/src/draw/nanovg/lv_draw_nanovg_image.c
+index 3699e38..551c526 100644
+--- a/src/draw/nanovg/lv_draw_nanovg_image.c
++++ b/src/draw/nanovg/lv_draw_nanovg_image.c
+@@ -32,6 +32,7 @@
+ static void image_dsc_to_matrix(lv_matrix_t * matrix, int32_t x, int32_t y, const lv_draw_image_dsc_t * dsc);
+ static inline void apply_recolor(NVGpaint * paint, const lv_draw_image_dsc_t * dsc);
+ static bool is_power_of_2(uint32_t num);
++static bool is_transposed_gl_texture(const void * src);
+ static void fill_repeat_tile_image(
+     lv_draw_nanovg_unit_t * u,
+     const lv_draw_image_dsc_t * dsc,
+@@ -135,6 +136,16 @@ void lv_draw_nanovg_image(lv_draw_task_t * t, const lv_draw_image_dsc_t * dsc, c
+ 
+     NVGpaint paint = nvgImagePattern(u->vg, img_ofs_x, img_ofs_y, img_w, img_h, 0, image_handle,
+                                      dsc->opa / (float)LV_OPA_COVER);
++    if(is_transposed_gl_texture(dsc->src)) {
++        /* Swap the pattern axes: the texture's u runs down the image and its
++         * v across, so pattern x maps to image y and pattern y to image x. */
++        paint.xform[0] = 0.0f;
++        paint.xform[1] = 1.0f;
++        paint.xform[2] = 1.0f;
++        paint.xform[3] = 0.0f;
++        paint.extent[0] = (float)img_h;
++        paint.extent[1] = (float)img_w;
++    }
+     apply_recolor(&paint, dsc);
+ 
+     nvgFillPaint(u->vg, paint);
+@@ -195,6 +206,14 @@ static void image_dsc_to_matrix(lv_matrix_t * matrix, int32_t x, int32_t y, cons
+     }
+ }
+ 
++static bool is_transposed_gl_texture(const void * src)
++{
++    if(lv_image_src_get_type(src) != LV_IMAGE_SRC_VARIABLE) return false;
++    const lv_image_dsc_t * img = src;
++    const uint32_t both = LV_IMAGE_FLAGS_GL_TEXTURE | LV_IMAGE_FLAGS_GL_TEXTURE_TRANSPOSED;
++    return (img->header.flags & both) == both;
++}
++
+ static bool is_power_of_2(uint32_t num)
+ {
+     uint32_t n = num > 0 ? num - 1 : 0;
 diff --git a/src/draw/nanovg/lv_draw_nanovg_private.h b/src/draw/nanovg/lv_draw_nanovg_private.h
 index fdb875d..e6ae961 100644
 --- a/src/draw/nanovg/lv_draw_nanovg_private.h
@@ -71,10 +137,10 @@ index fdb875d..e6ae961 100644
   * Initialize the blur draw unit state on the given nanovg unit
   * @param u pointer to the nanovg unit
 diff --git a/src/draw/nanovg/lv_nanovg_image_cache.c b/src/draw/nanovg/lv_nanovg_image_cache.c
-index 356ec6b..7704f94 100644
+index 356ec6b..f9ef53b 100644
 --- a/src/draw/nanovg/lv_nanovg_image_cache.c
 +++ b/src/draw/nanovg/lv_nanovg_image_cache.c
-@@ -119,6 +119,31 @@ int lv_nanovg_image_cache_get_handle(struct _lv_draw_nanovg_unit_t * u,
+@@ -119,6 +119,36 @@ int lv_nanovg_image_cache_get_handle(struct _lv_draw_nanovg_unit_t * u,
      LV_ASSERT_NULL(u);
      LV_ASSERT_NULL(src);
  
@@ -91,9 +157,14 @@ index 356ec6b..7704f94 100644
 +                return -1;
 +            }
 +            lv_memcpy(&texture, gl_dsc->data, sizeof(texture));
-+            int flags = image_flags | NVG_IMAGE_FLIPY;
++            /* A transposed texture needs no flip: its texel row 0 is the
++             * left image column. lv_draw_nanovg_image swaps the axes. */
++            bool transposed = (gl_dsc->header.flags & LV_IMAGE_FLAGS_GL_TEXTURE_TRANSPOSED) != 0;
++            int flags = image_flags | (transposed ? 0 : NVG_IMAGE_FLIPY);
 +            if(gl_dsc->header.flags & LV_IMAGE_FLAGS_PREMULTIPLIED) flags |= NVG_IMAGE_PREMULTIPLIED;
-+            int handle = lv_nanovg_image_from_gl_texture(u, texture, gl_dsc->header.w, gl_dsc->header.h, flags);
++            int32_t tex_w = transposed ? gl_dsc->header.h : gl_dsc->header.w;
++            int32_t tex_h = transposed ? gl_dsc->header.w : gl_dsc->header.h;
++            int handle = lv_nanovg_image_from_gl_texture(u, texture, tex_w, tex_h, flags);
 +            if(handle > 0) {
 +                lv_pending_add(u->image_uncached_pending, &handle);
 +                if(header) *header = gl_dsc->header;

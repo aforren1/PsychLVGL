@@ -151,7 +151,8 @@ double plv_image_create_argb(int32_t w, int32_t h, uint8_t ** out_pixels, plv_er
     return plv_image_register(img, err);
 }
 
-double plv_image_from_texture(uint32_t texture, int32_t w, int32_t h, plv_err_t * err)
+double plv_image_from_texture(uint32_t texture, int32_t w, int32_t h, int transposed,
+                              plv_err_t * err)
 {
     plv_image_res_t * img;
 
@@ -165,7 +166,10 @@ double plv_image_from_texture(uint32_t texture, int32_t w, int32_t h, plv_err_t 
     /* The vendored patch 0002 teaches the NanoVG draw unit to draw this
      * descriptor straight from the texture, so no pixel crosses the CPU. */
     img->texture          = texture;
-    img->dsc.header.flags = LV_IMAGE_FLAGS_GL_TEXTURE;
+    /* Patch 0002 swaps the axes of a transposed texture where it builds the
+     * NanoVG paint, so the image shows as the matrix did. */
+    img->dsc.header.flags = (uint32_t)(LV_IMAGE_FLAGS_GL_TEXTURE
+                                       | (transposed ? LV_IMAGE_FLAGS_GL_TEXTURE_TRANSPOSED : 0));
     img->dsc.data         = (const uint8_t *)&img->texture;
     img->dsc.data_size    = (uint32_t)sizeof(img->texture);
 #else
@@ -175,6 +179,7 @@ double plv_image_from_texture(uint32_t texture, int32_t w, int32_t h, plv_err_t 
         size_t bytes = (size_t)w * (size_t)h * 4u;
         img = plv_image_alloc(w, h, bytes, err);
         if(!img) return 0.0;
+        LV_UNUSED(transposed);
         img->texture       = texture;
         img->dsc.data      = (const uint8_t *)(img + 1);
         img->dsc.data_size = (uint32_t)bytes;

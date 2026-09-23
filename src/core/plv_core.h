@@ -161,7 +161,10 @@ double            plv_style_create(plv_err_t * err);
 int               plv_style_delete(double handle, plv_err_t * err);
 uint32_t          plv_style_use_count(const lv_style_t * style);
 
-double            plv_image_from_texture(uint32_t texture, int32_t w, int32_t h, plv_err_t * err);
+/* w and h are the image as shown. transposed: the texture holds it with rows
+ * and columns swapped, as Psychtoolbox stores a texture made from a matrix. */
+double            plv_image_from_texture(uint32_t texture, int32_t w, int32_t h, int transposed,
+                                         plv_err_t * err);
 /* The caller fills *out_pixels, w * h ARGB8888 pixels in LVGL byte order
  * (B, G, R, A), before anything draws the image. */
 double            plv_image_create_argb(int32_t w, int32_t h, uint8_t ** out_pixels, plv_err_t * err);

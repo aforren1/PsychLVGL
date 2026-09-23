@@ -117,9 +117,13 @@ function test_helpers()
     Screen('stubSetTexture', hex2dec('84F5'), 0.975, [0 0 32 16]);
     plv_throws('a rectangle texture is refused', 'psychlvgl:Texture', ...
                @() PsychLVGLImageFromTexture(ui.win, 900));
-    Screen('stubSetTexture', 3553, -0.017, [0 0 32 16]);
-    plv_throws('a transposed texture is refused', 'psychlvgl:Texture', ...
-               @() PsychLVGLImageFromTexture(ui.win, 900));
+    % A texture made from a matrix is stored transposed. It is accepted, and
+    % the image keeps the size Psychtoolbox shows, not the texel size.
+    Screen('stubSetTexture', 3553, -0.017, [0 0 40 12]);
+    img2 = PsychLVGLImageFromTexture(ui.win, 900);
+    PsychLVGL('ImageSetSrc', obj, img2);
+    plv_eq('a transposed texture keeps the shown width', PsychLVGL('ImageGetSrcWidth', obj), 40);
+    plv_eq('a transposed texture keeps the shown height', PsychLVGL('ImageGetSrcHeight', obj), 12);
     plv_throws('the helper takes two arguments', 'psychlvgl:Usage', ...
                @() PsychLVGLImageFromTexture(ui.win));
     Screen('stubSetTexture', 3553, 0.975, [0 0 32 16]);

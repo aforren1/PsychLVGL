@@ -15,45 +15,68 @@ function test_gl_image()
     PsychLVGL('ObjSetStyleBgColor', scr, [0 0 0]);
     PsychLVGL('ObjSetStyleBgOpa', scr, 255);
 
-    % top half blue, bottom half red
+    % Quadrants: top left blue, top right cyan, bottom left red, bottom right
+    % yellow. A transpose and a flip give different layouts, so checking all
+    % four tells them apart.
     M = zeros(60, 80, 3, 'uint8');
     M(1:30, :, 3) = 255;
     M(31:60, :, 1) = 255;
+    M(:, 41:80, 2) = 255;
 
     plv_throws('a rectangle texture is refused', 'psychlvgl:Texture', ...
                @() try_texture(win, Screen('MakeTexture', win, M)));
-    plv_throws('a transposed texture is refused', 'psychlvgl:Texture', ...
-               @() try_texture(win, Screen('MakeTexture', win, M, [], 1)));
 
-    tex = Screen('MakeTexture', win, M, [], 1, [], 1);
-    img = PsychLVGLImageFromTexture(win, tex);
-    obj = PsychLVGL('ImageCreate', scr);
-    PsychLVGL('ImageSetSrc', obj, img);
-    PsychLVGL('ObjSetPos', obj, 0, 0);
-    plv_eq('the image has the texture size', ...
-           [PsychLVGL('ImageGetSrcWidth', obj), PsychLVGL('ImageGetSrcHeight', obj)], [80 60]);
+    % The default storage order is transposed; textureOrientation 1 is
+    % upright. Both have to show the matrix as Screen('DrawTexture') does.
+    texT = Screen('MakeTexture', win, M, [], 1);
+    texU = Screen('MakeTexture', win, M, [], 1, [], 1);
+    imgT = PsychLVGLImageFromTexture(win, texT);
+    imgU = PsychLVGLImageFromTexture(win, texU);
+    objT = PsychLVGL('ImageCreate', scr);
+    objU = PsychLVGL('ImageCreate', scr);
+    PsychLVGL('ImageSetSrc', objT, imgT);
+    PsychLVGL('ImageSetSrc', objU, imgU);
+    PsychLVGL('ObjSetPos', objT, 0, 0);
+    PsychLVGL('ObjSetPos', objU, 100, 0);
+    plv_eq('a transposed texture image has the matrix size', ...
+           [PsychLVGL('ImageGetSrcWidth', objT), PsychLVGL('ImageGetSrcHeight', objT)], [80 60]);
+    plv_eq('an upright texture image has the matrix size', ...
+           [PsychLVGL('ImageGetSrcWidth', objU), PsychLVGL('ImageGetSrcHeight', objU)], [80 60]);
 
     PsychLVGLFrame(ui);
     I = double(Screen('GetImage', win, dst, 'drawBuffer'));
     Screen('Flip', win);
 
-    top = squeeze(mean(mean(I(6:24, 10:70, :), 1), 2));
-    bot = squeeze(mean(mean(I(36:54, 10:70, :), 1), 2));
-    plv_assert('the texture image is visible, top half blue', ...
-               top(3) > 200 && top(1) < 60 && top(2) < 60);
-    plv_assert('the texture image is upright, bottom half red', ...
-               bot(1) > 200 && bot(2) < 60 && bot(3) < 60);
-    right = squeeze(mean(mean(I(10:50, 120:190, :), 1), 2));
-    plv_assert('the panel outside the image stays black', all(right < 30));
+    names = {'transposed', 'upright'};
+    x0 = [0 100];
+    want = {[0 0 255], [0 255 255]; [255 0 0], [255 255 0]};
+    where = {'top left', 'top right'; 'bottom left', 'bottom right'};
+    for k = 1:2
+        for r = 1:2
+            for c = 1:2
+                rows = (r - 1) * 30 + (8:22);
+                cols = x0(k) + (c - 1) * 40 + (10:30);
+                m = squeeze(mean(mean(I(rows, cols, :), 1), 2))';
+                plv_assert(sprintf('the %s texture shows %s as the matrix does', ...
+                                   names{k}, where{r, c}), all(abs(m - want{r, c}) < 60));
+            end
+        end
+    end
+    below = squeeze(mean(mean(I(70:115, 10:190, :), 1), 2));
+    plv_assert('the panel outside the images stays black', all(below < 30));
 
     plv_throws('an image in use cannot be deleted', 'psychlvgl:InUse', ...
-               @() PsychLVGL('ImageDelete', img));
-    PsychLVGL('ImageSetSrc', obj, 0);
-    PsychLVGL('ImageDelete', img);
-    Screen('Close', tex);
+               @() PsychLVGL('ImageDelete', imgT));
+    PsychLVGL('ImageSetSrc', objT, 0);
+    PsychLVGL('ImageSetSrc', objU, 0);
+    PsychLVGL('ImageDelete', imgT);
+    PsychLVGL('ImageDelete', imgU);
+    Screen('Close', texT);
+    Screen('Close', texU);
     PsychLVGLFrame(ui);
     Screen('Flip', win);
     plv_eq('the frame after ImageDelete left 2D mode', plv_gl_drawmode(), 0);
+    obj = objT;
 
     % an image from a uint8 array goes through NanoVG's own upload path
     G = zeros(40, 50, 3, 'uint8');

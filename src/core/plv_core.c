@@ -307,11 +307,20 @@ static void plv_clear_widgets(void)
     old   = lv_screen_active();
     fresh = lv_obj_create(NULL);
     lv_screen_load(fresh);
+    /* The old screen goes first, because it may or may not be registered.
+     * Deleting it inside the slot loop and then asking whether it was still
+     * valid read the freed object; glibc and macOS crashed on that where the
+     * Windows heap did not. Once it is gone its slot is free, so the loop
+     * below never sees it. */
+    if(old && old != fresh) lv_obj_delete(old);
     for(i = 1; g_plv.slots && i <= g_plv.slot_count; i++) {
         lv_obj_t * obj = g_plv.slots[i].obj;
         if(obj && obj != fresh && lv_obj_get_parent(obj) == NULL) lv_obj_delete(obj);
     }
-    if(old && old != fresh && lv_obj_is_valid(old)) lv_obj_delete(old);
+    /* fresh is not registered. The persistent build keeps it as the active
+     * screen until the next Init replaces it with its own, which deletes it,
+     * so it never outlives one Init cycle; lv_deinit frees it in the
+     * software build. */
 }
 
 /* Tears the session down without deciding the fate of LVGL itself. */

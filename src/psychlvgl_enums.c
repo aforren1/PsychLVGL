@@ -375,6 +375,7 @@ const plv_enum_entry_t plv_enum_table[] = {
     { "LV_IMAGE_FLAGS_COMPRESSED", (double)(LV_IMAGE_FLAGS_COMPRESSED) },
     { "LV_IMAGE_FLAGS_CUSTOM_DRAW", (double)(LV_IMAGE_FLAGS_CUSTOM_DRAW) },
     { "LV_IMAGE_FLAGS_GL_TEXTURE", (double)(LV_IMAGE_FLAGS_GL_TEXTURE) },
+    { "LV_IMAGE_FLAGS_GL_TEXTURE_TRANSPOSED", (double)(LV_IMAGE_FLAGS_GL_TEXTURE_TRANSPOSED) },
     { "LV_IMAGE_FLAGS_MODIFIABLE", (double)(LV_IMAGE_FLAGS_MODIFIABLE) },
     { "LV_IMAGE_FLAGS_PREMULTIPLIED", (double)(LV_IMAGE_FLAGS_PREMULTIPLIED) },
     { "LV_IMAGE_FLAGS_USER1", (double)(LV_IMAGE_FLAGS_USER1) },
@@ -839,4 +840,4 @@ const plv_enum_entry_t plv_enum_table[] = {
     { "_LV_IMAGE_ALIGN_AUTO_TRANSFORM", (double)(_LV_IMAGE_ALIGN_AUTO_TRANSFORM) },
 };
 
-const int plv_enum_count = 833;
+const int plv_enum_count = 834;

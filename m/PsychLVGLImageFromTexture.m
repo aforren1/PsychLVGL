@@ -4,17 +4,25 @@ function img = PsychLVGLImageFromTexture(win, tex)
 %   img = PsychLVGLImageFromTexture(win, tex)
 %
 %   win   The onscreen window the texture belongs to.
-%   tex   A Psychtoolbox texture handle. It must be a GL_TEXTURE_2D texture in
-%         upright orientation. Make it with specialFlags 1 and
-%         textureOrientation 1:
+%   tex   A Psychtoolbox texture handle. It must be a GL_TEXTURE_2D texture,
+%         which Screen('MakeTexture') makes with specialFlags 1:
 %
-%             tex = Screen('MakeTexture', win, imageMatrix, [], 1, [], 1);
+%             tex = Screen('MakeTexture', win, imageMatrix, [], 1);
+%
+%         Both storage orders work. The default textureOrientation stores the
+%         matrix transposed; textureOrientation 1 or 2 stores it upright,
+%         bottom row first. The image shows the same way for both: as
+%         Screen('DrawTexture') shows it, imageMatrix columns wide and rows
+%         high.
 %
 %   img   An image handle for PsychLVGL('ImageSetSrc', imageObject, img).
 %
 %   The NanoVG renderer samples the texture directly, so no pixel crosses
 %   the CPU. This needs no OpenGL context of its own: call it outside
 %   Screen('BeginOpenGL').
+%
+%   Rotation, scale, recolor and clip radius work as for any image. A texture
+%   image does not tile.
 %
 %   The texture stays yours. Keep it open while an image object shows it,
 %   and close it only after PsychLVGL('ImageSetSrc', obj, 0) and
@@ -23,14 +31,14 @@ function img = PsychLVGLImageFromTexture(win, tex)
 %   image again.
 %
 %   Example:
-%       tex = Screen('MakeTexture', win, imread('face.png'), [], 1, [], 1);
+%       tex = Screen('MakeTexture', win, imread('face.png'), [], 1);
 %       img = PsychLVGLImageFromTexture(win, tex);
 %       obj = PsychLVGL('ImageCreate', PsychLVGL('ScreenActive'));
 %       PsychLVGL('ImageSetSrc', obj, img);
 %
-%   Errors: psychlvgl:Texture when the texture is a rectangle texture or is
-%   stored transposed, which Psychtoolbox does unless textureOrientation is
-%   1 or 2.
+%   Errors: psychlvgl:Texture when the texture is a rectangle texture, the
+%   Psychtoolbox default without specialFlags 1. LVGL's renderer samples
+%   GL_TEXTURE_2D only.
 %
 %   See also PSYCHLVGLOPEN, PSYCHLVGLCLOSE.
 
@@ -44,21 +52,19 @@ function img = PsychLVGLImageFromTexture(win, tex)
     if target ~= GL_TEXTURE_2D
         error('psychlvgl:Texture', ...
               ['texture %d is not a GL_TEXTURE_2D texture (target 0x%X). Make it ' ...
-               'with specialFlags 1: Screen(''MakeTexture'', win, M, [], 1, [], 1).'], ...
+               'with specialFlags 1: Screen(''MakeTexture'', win, M, [], 1).'], ...
               tex, target);
     end
 
-    % Psychtoolbox maps texel coordinates through the texture's orientation.
-    % An upright texture stores the bottom row first, so the top left pixel
-    % maps to v near 1. A transposed one, the MakeTexture default, maps it to
-    % v near 0, and LVGL cannot transpose an image while it draws it.
+    % Psychtoolbox reports a texture's storage order nowhere but in how it
+    % maps an image position to texture coordinates. The top left pixel of an
+    % upright texture, stored bottom row first, maps to v near 1; that of a
+    % texture made from a matrix, stored transposed, maps to v near 0.
     [~, ~, ~, v0] = Screen('GetOpenGLTexture', win, tex, 0, 0);
-    if v0 < 0.5
-        error('psychlvgl:Texture', ...
-              ['texture %d is stored transposed. Make it with textureOrientation 1: ' ...
-               'Screen(''MakeTexture'', win, M, [], 1, [], 1).'], tex);
-    end
+    transposed = v0 < 0.5;
 
+    % Screen('Rect') is the size as shown, whatever the storage order.
     rect = Screen('Rect', tex);
-    img = PsychLVGL('ImageFromTexture', glTex, rect(3) - rect(1), rect(4) - rect(2));
+    img = PsychLVGL('ImageFromTexture', glTex, rect(3) - rect(1), rect(4) - rect(2), ...
+                    transposed);
 end

@@ -709,12 +709,14 @@ static void op_ImageFromTexture(int nlhs, mxArray * plhs[], int nrhs, const mxAr
     double h;
     uint32_t tex;
     int32_t w, hh;
+    int transposed = 0;
     (void)nlhs;
-    plv_need_args(nrhs, 3, 3, "ImageFromTexture");
+    plv_need_args(nrhs, 3, 4, "ImageFromTexture");
     tex = (uint32_t)plv_arg_int(prhs[1], 1, 1, 4294967295.0);
     w   = (int32_t)plv_arg_int(prhs[2], 2, 1, PLV_IMAGE_MAX_SIDE);
     hh  = (int32_t)plv_arg_int(prhs[3], 3, 1, PLV_IMAGE_MAX_SIDE);
-    h = plv_image_from_texture(tex, w, hh, &err);
+    if(nrhs > 4) transposed = plv_arg_bool(prhs[4], 4);
+    h = plv_image_from_texture(tex, w, hh, transposed, &err);
     if(h == 0.0) plv_raise(&err);
     plhs[0] = mxCreateDoubleScalar(h);
 }

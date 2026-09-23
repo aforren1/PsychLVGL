@@ -25,7 +25,7 @@ time by CMake or by `tools/apply_lvgl_patches.sh`:
 | Patch | Files | Purpose |
 |---|---|---|
 | `patches/lvgl/0001-opengles-driver-gl21-glsl120.patch` | 4 | GLSL 1.20 and OpenGL 2.1 path of the OpenGL driver (SPEC D38) |
-| `patches/lvgl/0002-nanovg-image-from-gl-texture.patch` | 4 | image descriptors that name an OpenGL texture, drawn by the NanoVG unit (SPEC D41) |
+| `patches/lvgl/0002-nanovg-image-from-gl-texture.patch` | 5 | image descriptors that name an OpenGL texture, upright or transposed, drawn by the NanoVG unit (SPEC D41) |
 
 The submodule pointer stays at the commit above; the patches live in the
 working tree only. See README, "Vendored LVGL patches".

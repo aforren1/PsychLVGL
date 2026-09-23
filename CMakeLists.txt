@@ -2,6 +2,15 @@
 # LVGL-facing core layer of psychlvgl. The MEX itself is compiled by build.m
 # with the engine's own `mex` driver, so nothing here knows about MATLAB.
 cmake_minimum_required(VERSION 3.16)
+
+# MATLAB's mex links with -mmacosx-version-min=11.0. Static libraries built
+# for the host's newer macOS make the linker print a warning per object file,
+# several hundred for LVGL, so they target the same minimum. It has to be set
+# before project(), which reads it.
+if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version, as mex uses")
+endif()
+
 project(psychlvgl C)
 
 set(CMAKE_C_STANDARD 99)

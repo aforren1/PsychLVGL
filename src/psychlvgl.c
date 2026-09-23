@@ -14,7 +14,7 @@
 #include <string.h>
 
 #ifndef PSYCHLVGL_VERSION
-#define PSYCHLVGL_VERSION "0.1.0"
+#define PSYCHLVGL_VERSION "0.2.0"
 #endif
 
 /* ------------------------------------------------------------------ helpers */

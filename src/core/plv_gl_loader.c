@@ -93,5 +93,19 @@ void * plv_gl_context(void)
 
 int plv_gl_load(void)
 {
-    return gladLoadGL(plv_get_proc) != 0;
+    if(gladLoadGL(plv_get_proc) == 0) return 0;
+
+    /* glad's ALIAS output fills glGenVertexArrays and glDeleteVertexArrays from
+     * the APPLE extension on a context without the core names, but not
+     * glBindVertexArray: the registry does not list glBindVertexArrayAPPLE as
+     * an alias, because the APPLE spec words the binding of object 0 as a
+     * return to the default array rather than to no array. For the driver and
+     * NanoVG, which bind a generated object and then 0, the two behave the
+     * same, so on the GL 2.1 context Psychtoolbox creates on macOS this is
+     * what makes the GL2 build start (SPEC deviation D38). */
+    if(glad_glBindVertexArray == NULL && glad_glBindVertexArrayAPPLE != NULL)
+        glad_glBindVertexArray = (PFNGLBINDVERTEXARRAYPROC)glad_glBindVertexArrayAPPLE;
+    if(glad_glIsVertexArray == NULL && glad_glIsVertexArrayAPPLE != NULL)
+        glad_glIsVertexArray = (PFNGLISVERTEXARRAYPROC)glad_glIsVertexArrayAPPLE;
+    return 1;
 }

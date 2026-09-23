@@ -1,0 +1,123 @@
+diff --git a/src/drivers/opengles/assets/lv_opengles_shader.c b/src/drivers/opengles/assets/lv_opengles_shader.c
+index 1b84a54..78fdb25 100644
+--- a/src/drivers/opengles/assets/lv_opengles_shader.c
++++ b/src/drivers/opengles/assets/lv_opengles_shader.c
+@@ -247,6 +247,38 @@ static const char * src_fragment_shader_v300es = "\n"
+ static const size_t src_includes_v100_count = sizeof src_includes_v100 / sizeof src_includes_v100[0];
+ static const size_t src_includes_v300es_count = sizeof src_includes_v300es / sizeof src_includes_v300es[0];
+ 
++/**********************
++ *   STATIC FUNCTIONS
++ **********************/
++
++/**
++ * Return the GLSL ES 1.00 source without its leading precision statement.
++ * Desktop GLSL 1.20 has everything else the 1.00 shaders use (attribute,
++ * varying, texture2D, gl_FragColor) but treats "precision" and the precision
++ * qualifiers as reserved words, so the one line that carries them is skipped.
++ * The v100 sources start with "\n" followed by that single line.
++ */
++static const char * lv_opengles_shader_skip_precision(const char * src)
++{
++    static const char word[] = "precision ";
++    const char * p = src;
++    while(*p != '\0') {
++        const char * a = p;
++        const char * b = word;
++        while(*b != '\0' && *a == *b) {
++            a++;
++            b++;
++        }
++        if(*b == '\0') {
++            /* Found the statement; skip to the start of the next line. */
++            while(*a != '\0' && *a != '\n') a++;
++            return *a == '\n' ? a + 1 : a;
++        }
++        p++;
++    }
++    return src;
++}
++
+ /**********************
+  *   GLOBAL FUNCTIONS
+  **********************/
+@@ -260,6 +292,9 @@ char * lv_opengles_shader_get_vertex(lv_opengl_glsl_version_t version)
+                                                              src_includes_v300es_count);
+         case LV_OPENGL_GLSL_VERSION_100:
+             return lv_opengl_shader_manager_process_includes(src_vertex_shader_v100, src_includes_v100, src_includes_v100_count);
++        case LV_OPENGL_GLSL_VERSION_120:
++            return lv_opengl_shader_manager_process_includes(lv_opengles_shader_skip_precision(src_vertex_shader_v100),
++                                                             src_includes_v100, src_includes_v100_count);
+         case LV_OPENGL_GLSL_VERSION_LAST:
+             LV_LOG_ERROR("Invalid glsl version %d", version);
+             return NULL;
+@@ -276,6 +311,9 @@ char * lv_opengles_shader_get_fragment(lv_opengl_glsl_version_t version)
+                                                              src_includes_v300es_count);
+         case LV_OPENGL_GLSL_VERSION_100:
+             return lv_opengl_shader_manager_process_includes(src_fragment_shader_v100, src_includes_v100, src_includes_v100_count);
++        case LV_OPENGL_GLSL_VERSION_120:
++            return lv_opengl_shader_manager_process_includes(lv_opengles_shader_skip_precision(src_fragment_shader_v100),
++                                                             src_includes_v100, src_includes_v100_count);
+         case LV_OPENGL_GLSL_VERSION_LAST:
+             LV_LOG_ERROR("Invalid glsl version %d", version);
+             return NULL;
+@@ -292,6 +330,7 @@ void lv_opengles_shader_get_source(lv_opengl_shader_portions_t * portions, lv_op
+             portions->count = src_includes_v300es_count;
+             return;
+         case LV_OPENGL_GLSL_VERSION_100:
++        case LV_OPENGL_GLSL_VERSION_120:
+             portions->all = src_includes_v100;
+             portions->count = src_includes_v100_count;
+             return;
+diff --git a/src/drivers/opengles/lv_opengles_driver.c b/src/drivers/opengles/lv_opengles_driver.c
+index c931639..3b5aa2c 100644
+--- a/src/drivers/opengles/lv_opengles_driver.c
++++ b/src/drivers/opengles/lv_opengles_driver.c
+@@ -166,8 +166,17 @@ lv_result_t lv_opengles_gl_format_from_color_format(lv_color_format_t cf, lv_ope
+ 
+     switch(cf) {
+         case LV_COLOR_FORMAT_L8:
+-            gl_format->internal_format = GL_R8;
+-            gl_format->format = GL_RED;
++            /* GL_R8 is an OpenGL 3.0 internal format. A legacy 2.1 context,
++             * such as Psychtoolbox creates on macOS, has luminance textures
++             * instead, and the shaders read the .r channel either way. */
++            if(GLAD_GL_VERSION_3_0) {
++                gl_format->internal_format = GL_R8;
++                gl_format->format = GL_RED;
++            }
++            else {
++                gl_format->internal_format = GL_LUMINANCE;
++                gl_format->format = GL_LUMINANCE;
++            }
+             gl_format->type = GL_UNSIGNED_BYTE;
+             gl_format->rb_swap = false;
+             gl_format->premultiplied = false;
+diff --git a/src/drivers/opengles/opengl_shader/lv_opengl_shader_internal.h b/src/drivers/opengles/opengl_shader/lv_opengl_shader_internal.h
+index 1e65ec1..546b142 100644
+--- a/src/drivers/opengles/opengl_shader/lv_opengl_shader_internal.h
++++ b/src/drivers/opengles/opengl_shader/lv_opengl_shader_internal.h
+@@ -89,6 +89,10 @@ typedef enum {
+     LV_OPENGL_GLSL_VERSION_300ES,
+     LV_OPENGL_GLSL_VERSION_330,
+     LV_OPENGL_GLSL_VERSION_100,
++    /* Desktop GLSL 1.20, the level of a legacy OpenGL 2.1 context such as the
++     * one Psychtoolbox creates on macOS. Same sources as 100 without the
++     * precision statements, which 1.20 rejects as reserved words. Tried last. */
++    LV_OPENGL_GLSL_VERSION_120,
+     LV_OPENGL_GLSL_VERSION_LAST,
+ } lv_opengl_glsl_version_t;
+ 
+diff --git a/src/drivers/opengles/opengl_shader/lv_opengl_shader_manager.c b/src/drivers/opengles/opengl_shader/lv_opengl_shader_manager.c
+index 87eddf3..028dd57 100644
+--- a/src/drivers/opengles/opengl_shader/lv_opengl_shader_manager.c
++++ b/src/drivers/opengles/opengl_shader/lv_opengl_shader_manager.c
+@@ -383,6 +383,8 @@ const char * lv_opengles_glsl_version_to_string(lv_opengl_glsl_version_t version
+             return "#version 300 es\n";
+         case LV_OPENGL_GLSL_VERSION_330:
+             return "#version 330\n";
++        case LV_OPENGL_GLSL_VERSION_120:
++            return "#version 120\n";
+         case LV_OPENGL_GLSL_VERSION_LAST:
+             LV_LOG_ERROR("LV_OPENGL_GLSL_VERSION_LAST is not a valid version");
+             return NULL;

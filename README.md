@@ -277,14 +277,26 @@ express.
   LVGL itself.
 - Style properties that need a pointer argument, images, charts, `lv_style_t`
   handles and TTF fonts are phase 2. See `gen/dropped.txt`.
-- macOS is built and packaged for Apple silicon only, and the GPU path there is
-  unproven. Psychtoolbox gives a GL 2.1 compatibility context, so the build
-  selects `LV_NANOVG_BACKEND_GL2`, but LVGL's own `lv_opengles_init` compiles
-  its blit shader as `#version 300 es`, `#version 330` or `#version 100` and
-  binds a core vertex array object. A 2.1 context offers GLSL 1.20 and neither
-  of the rest, so `Init` is expected to raise `psychlvgl:GLInit` until LVGL
-  grows a GLSL 1.20 path. The `smoke-gl-macos` job is what will say for
-  certain. The software variant and the whole no-GL suite are unaffected.
+- macOS is built and packaged for Apple silicon only. Psychtoolbox gives a
+  GL 2.1 compatibility context there, so the build selects
+  `LV_NANOVG_BACKEND_GL2` and applies the vendored LVGL patch described below.
+  The `smoke-gl-macos` job runs that path on Apple's software renderer. The
+  software variant and the whole no-GL suite do not depend on it.
+
+## Vendored LVGL patch
+
+`third_party/lvgl` is the unmodified v9.6.0 submodule plus one patch,
+`patches/lvgl/0001-opengles-driver-gl21-glsl120.patch`. CMake applies it at
+configure time when the checkout does not carry it yet, and
+`tools/apply_lvgl_patches.sh` does the same from a shell. The patch adds a
+GLSL 1.20 shader path and a luminance texture fallback to LVGL's OpenGL
+driver. That is what the GL2 build needs on the OpenGL 2.1 contexts
+Psychtoolbox creates on macOS; upstream LVGL needs OpenGL 3.0 without it.
+
+After a build, `git status` shows `third_party/lvgl` as modified. That is the
+applied patch, not something to commit. To see the pristine tree again, run
+`git -C third_party/lvgl checkout -- .`; the next configure applies the patch
+again. SPEC deviation D38 has the details.
 
 ## Releasing
 

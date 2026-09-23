@@ -18,3 +18,8 @@ git -C third_party/lvgl checkout 80ca777e37a2b176770726a02e07a6fb79ef0b39
 Once LVGL is a submodule, `git clone --recurse-submodules` or
 `git submodule update --init --recursive` replaces the commands above, and the
 commit in the table is the one the submodule points at.
+
+The LVGL checkout carries one local patch, `patches/lvgl/0001-opengles-driver-gl21-glsl120.patch`,
+applied at configure time by CMake or by `tools/apply_lvgl_patches.sh`.
+The submodule pointer stays at the commit above; the patch lives in the
+working tree only. See README, "Vendored LVGL patch".

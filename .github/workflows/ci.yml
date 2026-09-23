@@ -62,6 +62,7 @@ jobs:
             git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
+          bash tools/apply_lvgl_patches.sh
       - name: Install the OpenGL link library
         if: runner.os == 'Linux'
         # The GPU variant links against libGL. The runner image has the runtime
@@ -153,6 +154,7 @@ jobs:
             git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
+          bash tools/apply_lvgl_patches.sh
       - name: Build and test
         run: |
           docker run --rm -i -v "$PWD:/work" -w /work "gnuoctave/octave:${{ matrix.floor }}" bash -s <<'EOF'
@@ -248,6 +250,7 @@ jobs:
             git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
+          bash tools/apply_lvgl_patches.sh
       - name: Build and test
         run: |
           octave-cli --eval "build('test-sw'); addpath('tests'); run_tests('sw')"
@@ -284,6 +287,7 @@ jobs:
             git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
+          bash tools/apply_lvgl_patches.sh
       - name: Install Octave and CMake
         run: |
           command -v cmake >/dev/null || brew install cmake
@@ -329,6 +333,7 @@ jobs:
             git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
+          bash tools/apply_lvgl_patches.sh
       - name: Install Mesa and Xvfb
         run: |
           sudo apt-get update
@@ -367,6 +372,7 @@ jobs:
             git clone --no-checkout https://github.com/lvgl/lvgl.git third_party/lvgl
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
+          bash tools/apply_lvgl_patches.sh
       - name: Install CMake
         run: command -v cmake >/dev/null || brew install cmake
       - name: Build smoke_gl

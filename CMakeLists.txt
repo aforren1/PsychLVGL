@@ -39,6 +39,41 @@ set(LV_FETCH_DEPENDENCIES OFF  CACHE BOOL "" FORCE)
 set(LV_USE_FIND_PACKAGE   OFF  CACHE BOOL "" FORCE)
 set(LV_USE_PKG_CONFIG     OFF  CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS     OFF  CACHE BOOL "" FORCE)
+
+# --- vendored LVGL patches --------------------------------------------------
+# LVGL's OpenGL driver needs OpenGL 3.0 upstream. patches/lvgl adds a GLSL 1.20
+# shader path and a luminance texture fallback so the GL2 build runs on the
+# legacy 2.1 contexts Psychtoolbox creates on macOS (SPEC deviation D38). The
+# patch is applied to the submodule checkout at configure time. A marker
+# string in the patched header tells whether it is already there, so this is
+# idempotent and needs no tool when nothing is to do. tools/apply_lvgl_patches.sh
+# does the same from a shell.
+set(_plv_lvgl_dir ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lvgl)
+set(_plv_patch ${CMAKE_CURRENT_SOURCE_DIR}/patches/lvgl/0001-opengles-driver-gl21-glsl120.patch)
+file(STRINGS ${_plv_lvgl_dir}/src/drivers/opengles/opengl_shader/lv_opengl_shader_internal.h
+     _plv_marker REGEX "LV_OPENGL_GLSL_VERSION_120")
+if(NOT _plv_marker)
+    find_program(_plv_git git)
+    find_program(_plv_patch_prog patch)
+    if(_plv_git)
+        execute_process(COMMAND ${_plv_git} -C ${_plv_lvgl_dir} apply ${_plv_patch}
+                        RESULT_VARIABLE _plv_rc OUTPUT_QUIET ERROR_VARIABLE _plv_err)
+    elseif(_plv_patch_prog)
+        execute_process(COMMAND ${_plv_patch_prog} -p1 -N -d ${_plv_lvgl_dir} -i ${_plv_patch}
+                        RESULT_VARIABLE _plv_rc OUTPUT_QUIET ERROR_VARIABLE _plv_err)
+    else()
+        message(FATAL_ERROR "Neither git nor patch is available to apply ${_plv_patch}. "
+                            "Run tools/apply_lvgl_patches.sh on a machine that has one, "
+                            "or apply the patch by hand inside third_party/lvgl.")
+    endif()
+    if(NOT _plv_rc EQUAL 0)
+        message(FATAL_ERROR "Applying ${_plv_patch} to third_party/lvgl failed: ${_plv_err}")
+    endif()
+    message(STATUS "Applied ${_plv_patch} to third_party/lvgl")
+else()
+    message(STATUS "third_party/lvgl already carries the OpenGL 2.1 patch")
+endif()
+
 add_subdirectory(third_party/lvgl lvgl)
 
 # lv_conf.h names plv_assert.h through LV_ASSERT_CUSTOM_INCLUDE, so every LVGL

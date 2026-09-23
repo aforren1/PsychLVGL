@@ -5,13 +5,21 @@ retained mode GUI panels inside a Psychtoolbox (PTB) onscreen window. LVGL
 renders on the GPU with its NanoVG draw unit into an OpenGL texture. PTB draws
 that texture like any other PTB texture, so no pixels cross the CPU.
 
+![A dark LVGL control panel on the left of a Psychtoolbox window, with a contrast slider, a frequency dropdown, a drift switch, a value tile, an arc, a color wheel image, a line chart of the contrast history, three buttons, a progress bar and a trial table; a drifting Gabor patch fills the right side](docs/images/psychlvgl-xml-demo.png)
+
+The panel of `PsychLVGLXMLDemo`, loaded from the XML file
+`tests/xml/demo/gabor_panel.xml` and drawn into a Psychtoolbox window next to
+the Gabor patch it controls. `tools/CaptureReadmeScreenshot.m` makes this
+image again.
+
 `SPEC.md` is the design reference. Read it for the marshaling rules, the handle
 model and the event model. This file tells you how to build, test and run.
 
-Status: phases 1 and 2 of SPEC section 13 are implemented. Phase 2 adds
+Status: phases 1 to 3 of SPEC section 13 are implemented. Phase 2 adds
 charts, shared styles, images drawn straight from Psychtoolbox textures, TTF
-fonts, and GPU timing. Phase 3, user interfaces exported from the LVGL Pro
-editor, is not started.
+fonts, and GPU timing. Phase 3 loads user interfaces that the LVGL editor
+saves as XML, at run time and with no compiler; see "Load an XML user
+interface" below.
 
 ## Requirements
 
@@ -21,7 +29,7 @@ editor, is not started.
 | GNU Octave | 10.1 verified on Windows, 6.4 verified on Linux (WSL, Ubuntu 22.04). On macOS, the Homebrew build (`brew install octave`) |
 | Operating system | Windows 10 or later, Linux, macOS 12 or later on Apple silicon (`maca64`). Intel Macs are not built or tested |
 | CMake | 3.16 or later |
-| C compiler | MSVC 2022 for MATLAB on Windows, the MinGW gcc that Octave ships, Xcode command line tools on macOS, gcc or clang elsewhere |
+| C and C++ compiler | MSVC 2022 for MATLAB on Windows, the MinGW gcc and g++ that Octave ships, Xcode command line tools on macOS, gcc and g++ or clang elsewhere. C++ builds only pugixml, inside the static library |
 | Psychtoolbox | 3.0.19 or later, only for the GPU build and the demo |
 | Linux packages | `libgl1-mesa-dev` (or `libgl-dev`) for the GPU build, which links `libGL`; add `libx11-dev`, `xvfb`, and `libgl1-mesa-dri` for the native smoke test |
 | macOS frameworks | `OpenGL.framework`, which the Xcode command line tools install. Nothing else |
@@ -48,7 +56,14 @@ If the submodule cannot be fetched, the same commit can be cloned by hand:
 git clone --branch v9.6.0 https://github.com/lvgl/lvgl.git third_party/lvgl
 ```
 
-`third_party/PINS.md` records the exact commit either way.
+pugixml, the XML parser, is a plain clone for now, not a submodule. Clone it
+next to LVGL:
+
+```sh
+git clone --branch v1.16 https://github.com/zeux/pugixml.git third_party/pugixml
+```
+
+`third_party/PINS.md` records the exact commits either way.
 
 ## Build
 
@@ -106,7 +121,9 @@ MEX on the path.
 The no-GL suite covers the handle table, the event ring, the keypad, dispatch
 and argument errors, the tick, every generated subcommand, a CRC32 of the
 rendered software buffer, charts and their series handles, styles, fonts,
-images, and the helper M-files. The helpers are tested
+images, the helper M-files, `ParseXML`, and the XML interpreter on the
+fixtures in `tests/xml`, including eight example files copied from the LVGL
+tree. The helpers are tested
 against a Psychtoolbox stub in `tests/stub`, which records the calls and
 answers them, so the suite checks that every `Screen('BeginOpenGL')` has its
 `Screen('EndOpenGL')` even when the wrapped call fails. `run_tests` puts that
@@ -114,7 +131,7 @@ directory on the path once and takes it off once; no test changes the load
 path, and nothing here calls `rehash`, because a path change while the MEX is
 loaded can drive Octave 10 into unbounded recursion (SPEC deviation D35). The GL suite opens one 640x480 Psychtoolbox window
 and checks the texture id, the rendered colors, the panel orientation, a click,
-a resize, a chart, a style, a texture image, and a TTF label.
+a resize, a chart, a style, a texture image, a TTF label, and an XML screen.
 
 The GL tests, the demo and the perf script all open their window through
 `tests/gl/ptb_test_window.m`. That is the one place that sets
@@ -131,7 +148,9 @@ a hidden window and a legacy context, runs the core layer through several
 Update cycles with synthetic input, reads the panel texture back through a
 framebuffer object, and prints the Update times. A second scene draws a shared
 style, a line chart, an image straight from an OpenGL texture and a TTF label,
-and checks each one in the read-back pixels.
+and checks each one in the read-back pixels. Before any of that it parses a
+small XML document through the C interface of the parser, so the C++ part of
+the core library runs on every platform that runs the smoke test.
 
 ```sh
 # Windows
@@ -280,15 +299,95 @@ Psychtoolbox textures.
 slider, with a dropdown, a text area and a status label. `PsychLVGLDemo(3)`
 runs it for three seconds, which is what a smoke run does.
 
+`PsychLVGLXMLDemo` is the same experiment with its panel loaded from XML; it
+is the screenshot at the top of this file. Both demos need the source tree,
+because their window helper and the XML live under `tests/`.
+
 `PsychLVGLPerf` sweeps panel sizes and widget counts and prints the Update
 times together with the cost of the two Psychtoolbox context switches.
+
+## Load an XML user interface
+
+The LVGL editor (LVGL Pro, online or desktop) saves every screen and every
+component of a project as an XML file. `PsychLVGLLoadXML` reads such a file at
+run time and makes the same widgets with ordinary `PsychLVGL` calls. Nothing
+is compiled, so a layout can change between two sessions of an experiment.
+
+1. Design the panel in the editor, or write the XML by hand. Keep the
+   project folder together: the screen files, the component files, and
+   `globals.xml` with the constants, styles, subjects, fonts and images.
+2. Open the panel, then load the screen into it:
+
+   ```matlab
+   ui = PsychLVGLOpen(win, 440, 680, [20 20 460 700]);
+   [root, named] = PsychLVGLLoadXML('ui/main.xml');
+   ```
+
+   A `<screen>` fills the active screen, or the object you give as the
+   second argument. A `<component>` file becomes one child of it.
+3. Use the widgets by the `name` attribute they have in the XML:
+
+   ```matlab
+   PsychLVGL('LabelSetText', named.status, 'ready');
+   PsychLVGL('AddToGroup', named.contrast_slider);
+   ```
+
+4. If the XML binds widgets to subjects (`bind_value`, `bind_text`,
+   `bind_checked`, the `bind_flag_if_*` elements, `subject_*_event`), pass the
+   events to `PsychLVGLSubjects` every frame and read the values from it:
+
+   ```matlab
+   while running
+       [ui, E] = PsychLVGLFrame(ui);
+       named.subjects = PsychLVGLSubjects('update', named.subjects, E);
+       contrast = PsychLVGLSubjects('get', named.subjects, 'contrast') / 100;
+       ...
+       Screen('Flip', win);
+   end
+   ```
+
+   A value set from the script reaches every bound widget:
+   `named.subjects = PsychLVGLSubjects('set', named.subjects, 'contrast', 50)`.
+
+Every element or attribute that PsychLVGL cannot map gives one warning that
+names it and the file. Nothing is dropped without one. Pass
+`struct('Warn', @(id, msg) ...)` as the third argument to collect the
+warnings instead.
+
+To see or keep the calls that a file makes, write them as a MATLAB function:
+
+```matlab
+PsychLVGLXMLToM('ui/main.xml', 'build_main_panel.m');
+[root, named] = build_main_panel();       % the same result as PsychLVGLLoadXML
+```
+
+| Call | What it does |
+|---|---|
+| `[root, named] = PsychLVGLLoadXML(file [, parent] [, opts])` | Builds the interface of a screen or component file. `opts` fields: `AssetDir`, `Consts` (replaces `<consts>` values), `Warn`, `Globals` (a `globals.xml`, or `'none'`), `ComponentDirs`. |
+| `PsychLVGLXMLToM(file, outFile [, opts])` | Writes the same calls as a function `[root, named] = name(parent, assetDir)`. |
+| `S = PsychLVGLSubjects(verb, S, ...)` | The subject table: `update` once per frame with the events, `get`, `set`, and the `add`, `bind` and `trigger` verbs the loader uses. |
+| `img = PsychLVGLImageFromFile(path)` | An image handle from a PNG or JPEG file. The loader uses it for `<images>`. |
+| `tree = PsychLVGL('ParseXML', pathOrText)` | The parser itself: a struct tree with `tag`, `attributes`, `attr_names`, `text` and `children`. Needs no `Init`. |
+
+What the loader covers:
+
+| XML | Status |
+|---|---|
+| `lv_obj`, `lv_label`, `lv_button`, `lv_slider`, `lv_switch`, `lv_checkbox`, `lv_bar`, `lv_arc`, `lv_dropdown`, `lv_roller`, `lv_textarea`, `lv_spinbox`, `lv_table`, `lv_chart`, `lv_image` | Mapped, with their attributes, the table columns and cells, and the chart series, axes and cursors. |
+| `x`, `y`, `width`, `height` (pixels, `%`, `content`), `align`, `flex_flow`, `flex_grow`, the scroll attributes, every object flag and state | Mapped. |
+| Every `style_*` attribute, with parts and states after `-` or `:` (`style_bg_color-knob-pressed`) | Mapped onto the `ObjSetStyle<Prop>` setters. |
+| `<consts>` and `#name`, `<styles>` with `<style name selector>` children or the `styles` attribute, `<component>` with `<api>` props, `$prop` and `<view extends>` | Mapped. Styles become style handles, shared by every widget that uses them. |
+| `<fonts>` (`bin`, `tiny_ttf`, `freetype`) and built-in `lv_font_montserrat_*` names; `<images>` (`data`, `file`) | Fonts load with `FontLoad` at the declared size; images load with `imread`. |
+| `<subjects>` (`int`, `float`, `string`) and the `bind_*` and `subject_*_event` elements | Kept by `PsychLVGLSubjects`, which moves values through the event ring once per frame. |
+| Widgets that are not in the allowlist (button matrix, scale, keyboard, tab view, span, LED, and the others), grid track arrays, gradients, background and arc images, animations and timelines, translations, screen load events, event callbacks | Not mapped. Each gives one warning. SPEC deviation D59 has the list. |
 
 ## Continuous integration
 
 `.github/workflows/ci.yml` builds and tests the project on every push and
 pull request, and publishes a release on a `v*` tag. Checkout is
 `submodules: recursive`, and a "Fetch LVGL" step clones the pinned commit when
-the submodule is not there.
+the submodule is not there. A "Fetch pugixml" step does the same for pugixml,
+with the commit in `PUGIXML_COMMIT`.
 
 Jobs:
 
@@ -311,8 +410,9 @@ renderer, which is a GL 2.1 context with GLSL 1.20, the same profile
 Psychtoolbox gets on a Mac.
 
 Artifacts are named `psychlvgl-<engine>-<platform>[-<era>]` and each one holds
-only its own `dist/<arch>` and `dist-sw/<arch>`, plus `m/`, `lv_conf.h`,
-`README.md` and `SPEC.md`.
+only its own `dist/<arch>` and `dist-sw/<arch>`, plus `m/` (with the XML
+interpreter in `m/private`), `lv_conf.h`, `README.md` and `SPEC.md`. The XML
+fixtures and the demo panel under `tests/xml` are not packaged.
 
 ## Regenerating the bindings
 
@@ -352,6 +452,9 @@ from `src/psychlvgl_enums.c`.
   per session.
 - The GPU time in `Stats` needs OpenGL 3.3 or `GL_ARB_timer_query`. It stays 0
   on the OpenGL 2.1 context of macOS.
+- The XML loader covers the part of the LVGL XML format listed in "Load an
+  XML user interface". Grid layouts do not work, because the grid track
+  arrays cannot be passed (`gen/dropped.txt`).
 - macOS is built and packaged for Apple silicon only. Psychtoolbox gives a
   GL 2.1 compatibility context there, so the build selects
   `LV_NANOVG_BACKEND_GL2` and applies vendored LVGL patch 0001, described below.

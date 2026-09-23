@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A screen with one of each bound widget, local and global styles with
+     selectors, constants from this file and from globals.xml, a TTF font, an
+     image, and components with props. tests/test_xml_load.m checks the
+     result. -->
+<screen>
+	<consts>
+		<int name="slider_max" value="200"/>
+	</consts>
+
+	<styles>
+		<style name="style_tall" height="33"/>
+	</styles>
+
+	<view style_bg_color="0x202020" style_bg_opa="255">
+		<lv_label name="title" x="4" y="2" text="#app_title" style_text_font="font_title"
+		          style_text_color="0xffffff"/>
+
+		<lv_obj name="card" x="4" y="40" height="80">
+			<style name="style_card"/>
+			<style name="style_wide" selector="pressed"/>
+			<lv_label name="card_label" text="in the card" align="center"/>
+		</lv_obj>
+
+		<lv_obj name="box" x="220" y="40" width="50%" height="content"
+		        style_width-checked="77" style_bg_color:pressed="#accent" style_pad_all="0"
+		        scrollable="false" hidden="false"/>
+		<lv_obj name="tall_box" x="0" y="130" width="20" styles="style_tall"/>
+
+		<lv_slider name="slider" x="30" y="170" width="180" min_value="10" max_value="#slider_max" value="120"/>
+		<lv_bar name="bar" x="30" y="200" width="100" max_value="50" value="25"/>
+		<lv_arc name="arc" x="250" y="160" width="80" height="80" bg_start_angle="0" bg_end_angle="270" value="30"/>
+		<lv_switch name="sw" x="30" y="220" checked="true"/>
+		<lv_checkbox name="cb" x="120" y="220" text="Check me"/>
+		<lv_dropdown name="dd" x="30" y="260" width="120" options="One&#10;Two&#10;Three" selected="2"/>
+		<lv_roller name="roller" x="170" y="260" width="60" options="A&#10;B&#10;C" options-mode="infinite"
+		           selected="1" visible_row_count="3"/>
+		<lv_textarea name="ta" x="30" y="360" width="200" one_line="true" placeholder_text="type" text="hello"/>
+		<lv_spinbox name="spin" x="250" y="260" width="100" digit_count="4" dec_point_pos="1" min_value="-100"
+		            max_value="100" value="42"/>
+
+		<lv_table name="table" x="30" y="420" row_count="2" column_count="2">
+			<lv_table-column column="0" width="60"/>
+			<lv_table-cell row="1" column="1" value="x11"/>
+		</lv_table>
+
+		<lv_chart name="chart" x="200" y="420" width="120" height="60" type="line"
+		          point_count="#chart_points" hor_div_line_count="2">
+			<lv_chart-series name="series_a" color="0xff0000" axis="primary_y" values="1 2 3 4"/>
+			<lv_chart-axis axis="primary_y" min_value="0" max_value="10"/>
+			<lv_chart-cursor color="0x00ff00" dir="hor" pos_x="3" pos_y="4"/>
+		</lv_chart>
+
+		<lv_image name="img" x="340" y="10" src="img_checker"/>
+
+		<my_button name="ok_button" x="340" y="60" label="OK" tint="0x00aa00"/>
+		<my_button name="plain_button" x="340" y="110"/>
+		<info_card name="card2" x="340" y="160" title="Info"/>
+	</view>
+</screen>

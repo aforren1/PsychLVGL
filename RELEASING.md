@@ -49,8 +49,15 @@ GPU variants share the name `PsychLVGL`:
 PsychLVGLDemo(5)
 ```
 
+```matlab
+PsychLVGLXMLDemo(5)
+```
+
 Expect `0 failed` and `DEMO_OK` with a printed Gabor standard deviation above
-0.02. If the version bump came with new subcommands, confirm that
+0.02, and the XML demo to run for five seconds with no warning. When the look
+of the panel changed, run `tools/CaptureReadmeScreenshot.m` in a fresh session
+with the GPU build and check that `docs/images/psychlvgl-xml-demo.png` stays
+below about 400 KB. If the version bump came with new subcommands, confirm that
 `m/PsychLVGL.m` was regenerated (`build gen`) so the help lists them.
 
 ## 3. Update the documents
@@ -62,9 +69,14 @@ Expect `0 failed` and `DEMO_OK` with a printed Gabor standard deviation above
   described.
 - `lv_conf.h`: any option you changed gets its reason in a comment; the
   software and GPU variants both read it.
-- `third_party/PINS.md`: only if the LVGL submodule moved. A new LVGL
-  version also means rerunning `build gen`, reviewing `gen/dropped.txt` for
-  functions that no longer exist, and re-checking the four LVGL behaviors
+- `third_party/PINS.md`: only if the LVGL submodule or the pugixml clone
+  moved. A new pugixml needs `PUGIXML_COMMIT` in `.github/workflows/ci.yml`
+  changed to the same commit.
+- A new LVGL version can change the XML format the editor writes. Load the
+  example files again (`tests/xml/lvgl_examples`, copied from the LVGL tree)
+  and compare them with the new tree's `examples/**/*.xml`.
+- A new LVGL version also means rerunning `build gen`, reviewing
+  `gen/dropped.txt` for functions that no longer exist, and re-checking the four LVGL behaviors
   recorded as deviations D1 to D5, because they concern the experimental
   OpenGL driver. Both patches in `patches/lvgl` must still apply, and the
   private LVGL structs that D46 names must still have the fields
@@ -125,9 +137,12 @@ zip when you changed anything Octave specific.
 | `psychlvgl-octave-macos.zip` | Homebrew Octave, `macos-latest` | That Octave series on Apple silicon Macs |
 
 Each zip holds `dist/<arch>/` (the GPU build), `dist-sw/<arch>/` (the
-software test build), `m/`, `lv_conf.h`, `README.md`, and `SPEC.md`, and is
-a complete install for that engine and platform. Only the GPU build is meant
-for experiments.
+software test build), `m/` (with the XML interpreter in `m/private`),
+`lv_conf.h`, `README.md`, and `SPEC.md`, and is a complete install for that
+engine and platform. Only the GPU build is meant for experiments. The XML
+fixtures and the demo panels under `tests/` are not in the zips, so the two
+demos need a source checkout; `PsychLVGLLoadXML` itself needs nothing from
+`tests/`.
 
 The two macOS zips are built on `macos-latest`, which is Apple silicon, so
 they carry `maca64` only. Intel Macs are not covered: no runner builds

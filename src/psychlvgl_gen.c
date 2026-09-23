@@ -43,6 +43,42 @@ static void plv_op_ArcSetBgAngles(int nlhs, mxArray * plhs[], int nrhs, const mx
     (void)plhs;
 }
 
+static void plv_op_ArcSetBgEndAngle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ArcSetBgEndAngle");
+    (void)nlhs;
+    lv_arc_set_bg_end_angle(plv_arg_obj(prhs[1], 1), plv_arg_double(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ArcSetBgStartAngle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ArcSetBgStartAngle");
+    (void)nlhs;
+    lv_arc_set_bg_start_angle(plv_arg_obj(prhs[1], 1), plv_arg_double(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ArcSetChangeRate(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ArcSetChangeRate");
+    (void)nlhs;
+    lv_arc_set_change_rate(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ArcSetEndAngle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ArcSetEndAngle");
+    (void)nlhs;
+    lv_arc_set_end_angle(plv_arg_obj(prhs[1], 1), plv_arg_double(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_ArcSetMode(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_need_args(nrhs, 2, 2, "ArcSetMode");
@@ -66,6 +102,15 @@ static void plv_op_ArcSetRotation(int nlhs, mxArray * plhs[], int nrhs, const mx
     plv_need_args(nrhs, 2, 2, "ArcSetRotation");
     (void)nlhs;
     lv_arc_set_rotation(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ArcSetStartAngle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ArcSetStartAngle");
+    (void)nlhs;
+    lv_arc_set_start_angle(plv_arg_obj(prhs[1], 1), plv_arg_double(prhs[2], 2));
     plv_check_deferred();
     (void)plhs;
 }
@@ -106,6 +151,15 @@ static void plv_op_BarSetMode(int nlhs, mxArray * plhs[], int nrhs, const mxArra
     plv_need_args(nrhs, 2, 2, "BarSetMode");
     (void)nlhs;
     lv_bar_set_mode(plv_arg_obj(prhs[1], 1), (lv_bar_mode_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_BarSetOrientation(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "BarSetOrientation");
+    (void)nlhs;
+    lv_bar_set_orientation(plv_arg_obj(prhs[1], 1), (lv_bar_orientation_t)plv_arg_enum(prhs[2], 2));
     plv_check_deferred();
     (void)plhs;
 }
@@ -357,6 +411,15 @@ static void plv_op_ChartSetDivLineCount(int nlhs, mxArray * plhs[], int nrhs, co
     (void)plhs;
 }
 
+static void plv_op_ChartSetHorDivLineCount(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ChartSetHorDivLineCount");
+    (void)nlhs;
+    lv_chart_set_hor_div_line_count(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_ChartSetNextValue(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_need_args(nrhs, 3, 3, "ChartSetNextValue");
@@ -421,6 +484,15 @@ static void plv_op_ChartSetUpdateMode(int nlhs, mxArray * plhs[], int nrhs, cons
     plv_need_args(nrhs, 2, 2, "ChartSetUpdateMode");
     (void)nlhs;
     lv_chart_set_update_mode(plv_arg_obj(prhs[1], 1), (lv_chart_update_mode_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ChartSetVerDivLineCount(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ChartSetVerDivLineCount");
+    (void)nlhs;
+    lv_chart_set_ver_div_line_count(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
     plv_check_deferred();
     (void)plhs;
 }
@@ -681,6 +753,24 @@ static void plv_op_ImageSetPivot(int nlhs, mxArray * plhs[], int nrhs, const mxA
     (void)plhs;
 }
 
+static void plv_op_ImageSetPivotX(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetPivotX");
+    (void)nlhs;
+    lv_image_set_pivot_x(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ImageSetPivotY(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ImageSetPivotY");
+    (void)nlhs;
+    lv_image_set_pivot_y(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_ImageSetRotation(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_need_args(nrhs, 2, 2, "ImageSetRotation");
@@ -757,6 +847,15 @@ static void plv_op_LabelSetLongMode(int nlhs, mxArray * plhs[], int nrhs, const 
     (void)plhs;
 }
 
+static void plv_op_LabelSetRecolor(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "LabelSetRecolor");
+    (void)nlhs;
+    lv_label_set_recolor(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_LabelSetText(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_strbuf_t sbuf0;
@@ -765,6 +864,24 @@ static void plv_op_LabelSetText(int nlhs, mxArray * plhs[], int nrhs, const mxAr
     (void)nlhs;
     lv_label_set_text(plv_arg_obj(prhs[1], 1), plv_arg_str(prhs[2], 2, &sbuf0));
     plv_strbuf_free(&sbuf0);
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_LabelSetTextSelectionEnd(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "LabelSetTextSelectionEnd");
+    (void)nlhs;
+    lv_label_set_text_selection_end(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_LabelSetTextSelectionStart(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "LabelSetTextSelectionStart");
+    (void)nlhs;
+    lv_label_set_text_selection_start(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
     plv_check_deferred();
     (void)plhs;
 }
@@ -821,6 +938,19 @@ static void plv_op_ObjCreate(int nlhs, mxArray * plhs[], int nrhs, const mxArray
     plv_need_args(nrhs, 1, 1, "ObjCreate");
     (void)nlhs;
     ret = lv_obj_create(plv_arg_obj(prhs[1], 1));
+    plv_check_deferred();
+    plhs[0] = plv_ret_obj(ret);
+}
+
+static void plv_op_ObjFindByName(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_strbuf_t sbuf0;
+    lv_obj_t * ret;
+
+    plv_need_args(nrhs, 2, 2, "ObjFindByName");
+    (void)nlhs;
+    ret = lv_obj_find_by_name(plv_arg_obj(prhs[1], 1), plv_arg_str(prhs[2], 2, &sbuf0));
+    plv_strbuf_free(&sbuf0);
     plv_check_deferred();
     plhs[0] = plv_ret_obj(ret);
 }
@@ -962,6 +1092,69 @@ static void plv_op_ObjScrollToView(int nlhs, mxArray * plhs[], int nrhs, const m
     (void)plhs;
 }
 
+static void plv_op_ObjSetAdvHittest(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetAdvHittest");
+    (void)nlhs;
+    lv_obj_set_adv_hittest(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetCheckable(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetCheckable");
+    (void)nlhs;
+    lv_obj_set_checkable(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetClickFocusable(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetClickFocusable");
+    (void)nlhs;
+    lv_obj_set_click_focusable(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetClickable(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetClickable");
+    (void)nlhs;
+    lv_obj_set_clickable(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetEventBubble(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetEventBubble");
+    (void)nlhs;
+    lv_obj_set_event_bubble(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetEventTrickle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetEventTrickle");
+    (void)nlhs;
+    lv_obj_set_event_trickle(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetExtClickArea(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetExtClickArea");
+    (void)nlhs;
+    lv_obj_set_ext_click_area(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_ObjSetFlexAlign(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_need_args(nrhs, 4, 4, "ObjSetFlexAlign");
@@ -980,6 +1173,42 @@ static void plv_op_ObjSetFlexFlow(int nlhs, mxArray * plhs[], int nrhs, const mx
     (void)plhs;
 }
 
+static void plv_op_ObjSetFlexGrow(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetFlexGrow");
+    (void)nlhs;
+    lv_obj_set_flex_grow(plv_arg_obj(prhs[1], 1), (uint8_t)plv_arg_int(prhs[2], 2, 0, 255));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetFlexInNewTrack(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetFlexInNewTrack");
+    (void)nlhs;
+    lv_obj_set_flex_in_new_track(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetFloating(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetFloating");
+    (void)nlhs;
+    lv_obj_set_floating(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetGestureBubble(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetGestureBubble");
+    (void)nlhs;
+    lv_obj_set_gesture_bubble(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_ObjSetHeight(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_need_args(nrhs, 2, 2, "ObjSetHeight");
@@ -989,11 +1218,50 @@ static void plv_op_ObjSetHeight(int nlhs, mxArray * plhs[], int nrhs, const mxAr
     (void)plhs;
 }
 
+static void plv_op_ObjSetHidden(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetHidden");
+    (void)nlhs;
+    lv_obj_set_hidden(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetIgnoreLayout(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetIgnoreLayout");
+    (void)nlhs;
+    lv_obj_set_ignore_layout(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_ObjSetLayout(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_need_args(nrhs, 2, 2, "ObjSetLayout");
     (void)nlhs;
     lv_obj_set_layout(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetName(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_strbuf_t sbuf0;
+
+    plv_need_args(nrhs, 2, 2, "ObjSetName");
+    (void)nlhs;
+    lv_obj_set_name(plv_arg_obj(prhs[1], 1), plv_arg_str(prhs[2], 2, &sbuf0));
+    plv_strbuf_free(&sbuf0);
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetOverflowVisible(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetOverflowVisible");
+    (void)nlhs;
+    lv_obj_set_overflow_visible(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
     plv_check_deferred();
     (void)plhs;
 }
@@ -1016,11 +1284,173 @@ static void plv_op_ObjSetPos(int nlhs, mxArray * plhs[], int nrhs, const mxArray
     (void)plhs;
 }
 
+static void plv_op_ObjSetPressLock(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetPressLock");
+    (void)nlhs;
+    lv_obj_set_press_lock(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetRadioButton(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetRadioButton");
+    (void)nlhs;
+    lv_obj_set_radio_button(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollChain(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollChain");
+    (void)nlhs;
+    lv_obj_set_scroll_chain(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollChainHor(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollChainHor");
+    (void)nlhs;
+    lv_obj_set_scroll_chain_hor(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollChainVer(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollChainVer");
+    (void)nlhs;
+    lv_obj_set_scroll_chain_ver(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollDir(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollDir");
+    (void)nlhs;
+    lv_obj_set_scroll_dir(plv_arg_obj(prhs[1], 1), (lv_dir_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollElastic(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollElastic");
+    (void)nlhs;
+    lv_obj_set_scroll_elastic(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollMomentum(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollMomentum");
+    (void)nlhs;
+    lv_obj_set_scroll_momentum(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollOnFocus(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollOnFocus");
+    (void)nlhs;
+    lv_obj_set_scroll_on_focus(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollOne(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollOne");
+    (void)nlhs;
+    lv_obj_set_scroll_one(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollSnapX(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollSnapX");
+    (void)nlhs;
+    lv_obj_set_scroll_snap_x(plv_arg_obj(prhs[1], 1), (lv_scroll_snap_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollSnapY(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollSnapY");
+    (void)nlhs;
+    lv_obj_set_scroll_snap_y(plv_arg_obj(prhs[1], 1), (lv_scroll_snap_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollWithArrow(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollWithArrow");
+    (void)nlhs;
+    lv_obj_set_scroll_with_arrow(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollable(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollable");
+    (void)nlhs;
+    lv_obj_set_scrollable(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetScrollbarMode(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetScrollbarMode");
+    (void)nlhs;
+    lv_obj_set_scrollbar_mode(plv_arg_obj(prhs[1], 1), (lv_scrollbar_mode_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetSendDrawTaskEvents(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetSendDrawTaskEvents");
+    (void)nlhs;
+    lv_obj_set_send_draw_task_events(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_ObjSetSize(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_need_args(nrhs, 3, 3, "ObjSetSize");
     (void)nlhs;
     lv_obj_set_size(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetSnappable(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetSnappable");
+    (void)nlhs;
+    lv_obj_set_snappable(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_ObjSetStateTrickle(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "ObjSetStateTrickle");
+    (void)nlhs;
+    lv_obj_set_state_trickle(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
     plv_check_deferred();
     (void)plhs;
 }
@@ -2545,6 +2975,24 @@ static void plv_op_SpinboxIncrement(int nlhs, mxArray * plhs[], int nrhs, const 
     (void)plhs;
 }
 
+static void plv_op_SpinboxSetDecPointPos(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "SpinboxSetDecPointPos");
+    (void)nlhs;
+    lv_spinbox_set_dec_point_pos(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_SpinboxSetDigitCount(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "SpinboxSetDigitCount");
+    (void)nlhs;
+    lv_spinbox_set_digit_count(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_SpinboxSetDigitFormat(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_need_args(nrhs, 3, 3, "SpinboxSetDigitFormat");
@@ -2559,6 +3007,15 @@ static void plv_op_SpinboxSetRange(int nlhs, mxArray * plhs[], int nrhs, const m
     plv_need_args(nrhs, 3, 3, "SpinboxSetRange");
     (void)nlhs;
     lv_spinbox_set_range(plv_arg_obj(prhs[1], 1), (int32_t)plv_arg_int(prhs[2], 2, (-2147483647 - 1), 2147483647), (int32_t)plv_arg_int(prhs[3], 3, (-2147483647 - 1), 2147483647));
+    plv_check_deferred();
+    (void)plhs;
+}
+
+static void plv_op_SpinboxSetRollover(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "SpinboxSetRollover");
+    (void)nlhs;
+    lv_spinbox_set_rollover(plv_arg_obj(prhs[1], 1), plv_arg_bool(prhs[2], 2));
     plv_check_deferred();
     (void)plhs;
 }
@@ -2590,6 +3047,15 @@ static void plv_op_SwitchCreate(int nlhs, mxArray * plhs[], int nrhs, const mxAr
     ret = lv_switch_create(plv_arg_obj(prhs[1], 1));
     plv_check_deferred();
     plhs[0] = plv_ret_obj(ret);
+}
+
+static void plv_op_SwitchSetOrientation(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "SwitchSetOrientation");
+    (void)nlhs;
+    lv_switch_set_orientation(plv_arg_obj(prhs[1], 1), (lv_switch_orientation_t)plv_arg_enum(prhs[2], 2));
+    plv_check_deferred();
+    (void)plhs;
 }
 
 static void plv_op_TableCreate(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
@@ -2624,6 +3090,15 @@ static void plv_op_TableGetSelectedCell(int nlhs, mxArray * plhs[], int nrhs, co
     plv_check_deferred();
     if(nlhs > 0) plhs[0] = mxCreateDoubleScalar((double)row);
     if(nlhs > 1) plhs[1] = mxCreateDoubleScalar((double)col);
+}
+
+static void plv_op_TableSetCellCtrl(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 4, 4, "TableSetCellCtrl");
+    (void)nlhs;
+    lv_table_set_cell_ctrl(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295), (uint32_t)plv_arg_int(prhs[3], 3, 0, 4294967295), (lv_table_cell_ctrl_t)plv_arg_enum(prhs[4], 4));
+    plv_check_deferred();
+    (void)plhs;
 }
 
 static void plv_op_TableSetCellValue(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
@@ -2776,6 +3251,15 @@ static void plv_op_TextareaSetPasswordMode(int nlhs, mxArray * plhs[], int nrhs,
     (void)plhs;
 }
 
+static void plv_op_TextareaSetPasswordShowTime(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    plv_need_args(nrhs, 2, 2, "TextareaSetPasswordShowTime");
+    (void)nlhs;
+    lv_textarea_set_password_show_time(plv_arg_obj(prhs[1], 1), (uint32_t)plv_arg_int(prhs[2], 2, 0, 4294967295));
+    plv_check_deferred();
+    (void)plhs;
+}
+
 static void plv_op_TextareaSetPlaceholderText(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
 {
     plv_strbuf_t sbuf0;
@@ -2805,13 +3289,19 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "ArcGetValue", plv_op_ArcGetValue },
     { "ArcSetAngles", plv_op_ArcSetAngles },
     { "ArcSetBgAngles", plv_op_ArcSetBgAngles },
+    { "ArcSetBgEndAngle", plv_op_ArcSetBgEndAngle },
+    { "ArcSetBgStartAngle", plv_op_ArcSetBgStartAngle },
+    { "ArcSetChangeRate", plv_op_ArcSetChangeRate },
+    { "ArcSetEndAngle", plv_op_ArcSetEndAngle },
     { "ArcSetMode", plv_op_ArcSetMode },
     { "ArcSetRange", plv_op_ArcSetRange },
     { "ArcSetRotation", plv_op_ArcSetRotation },
+    { "ArcSetStartAngle", plv_op_ArcSetStartAngle },
     { "ArcSetValue", plv_op_ArcSetValue },
     { "BarCreate", plv_op_BarCreate },
     { "BarGetValue", plv_op_BarGetValue },
     { "BarSetMode", plv_op_BarSetMode },
+    { "BarSetOrientation", plv_op_BarSetOrientation },
     { "BarSetRange", plv_op_BarSetRange },
     { "BarSetStartValue", plv_op_BarSetStartValue },
     { "BarSetValue", plv_op_BarSetValue },
@@ -2837,6 +3327,7 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "ChartSetCursorPosX", plv_op_ChartSetCursorPosX },
     { "ChartSetCursorPosY", plv_op_ChartSetCursorPosY },
     { "ChartSetDivLineCount", plv_op_ChartSetDivLineCount },
+    { "ChartSetHorDivLineCount", plv_op_ChartSetHorDivLineCount },
     { "ChartSetNextValue", plv_op_ChartSetNextValue },
     { "ChartSetPointCount", plv_op_ChartSetPointCount },
     { "ChartSetSeriesColor", plv_op_ChartSetSeriesColor },
@@ -2844,6 +3335,7 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "ChartSetSeriesValues", plv_op_ChartSetSeriesValues },
     { "ChartSetType", plv_op_ChartSetType },
     { "ChartSetUpdateMode", plv_op_ChartSetUpdateMode },
+    { "ChartSetVerDivLineCount", plv_op_ChartSetVerDivLineCount },
     { "ChartSetXStartPoint", plv_op_ChartSetXStartPoint },
     { "CheckboxCreate", plv_op_CheckboxCreate },
     { "CheckboxGetText", plv_op_CheckboxGetText },
@@ -2869,6 +3361,8 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "ImageSetOffsetX", plv_op_ImageSetOffsetX },
     { "ImageSetOffsetY", plv_op_ImageSetOffsetY },
     { "ImageSetPivot", plv_op_ImageSetPivot },
+    { "ImageSetPivotX", plv_op_ImageSetPivotX },
+    { "ImageSetPivotY", plv_op_ImageSetPivotY },
     { "ImageSetRotation", plv_op_ImageSetRotation },
     { "ImageSetScale", plv_op_ImageSetScale },
     { "ImageSetScaleX", plv_op_ImageSetScaleX },
@@ -2877,13 +3371,17 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "LabelCreate", plv_op_LabelCreate },
     { "LabelGetText", plv_op_LabelGetText },
     { "LabelSetLongMode", plv_op_LabelSetLongMode },
+    { "LabelSetRecolor", plv_op_LabelSetRecolor },
     { "LabelSetText", plv_op_LabelSetText },
+    { "LabelSetTextSelectionEnd", plv_op_LabelSetTextSelectionEnd },
+    { "LabelSetTextSelectionStart", plv_op_LabelSetTextSelectionStart },
     { "ObjAddFlag", plv_op_ObjAddFlag },
     { "ObjAddState", plv_op_ObjAddState },
     { "ObjAlign", plv_op_ObjAlign },
     { "ObjAlignTo", plv_op_ObjAlignTo },
     { "ObjCenter", plv_op_ObjCenter },
     { "ObjCreate", plv_op_ObjCreate },
+    { "ObjFindByName", plv_op_ObjFindByName },
     { "ObjGetChild", plv_op_ObjGetChild },
     { "ObjGetChildCount", plv_op_ObjGetChildCount },
     { "ObjGetHeight", plv_op_ObjGetHeight },
@@ -2897,13 +3395,46 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "ObjRemoveFlag", plv_op_ObjRemoveFlag },
     { "ObjRemoveState", plv_op_ObjRemoveState },
     { "ObjScrollToView", plv_op_ObjScrollToView },
+    { "ObjSetAdvHittest", plv_op_ObjSetAdvHittest },
+    { "ObjSetCheckable", plv_op_ObjSetCheckable },
+    { "ObjSetClickFocusable", plv_op_ObjSetClickFocusable },
+    { "ObjSetClickable", plv_op_ObjSetClickable },
+    { "ObjSetEventBubble", plv_op_ObjSetEventBubble },
+    { "ObjSetEventTrickle", plv_op_ObjSetEventTrickle },
+    { "ObjSetExtClickArea", plv_op_ObjSetExtClickArea },
     { "ObjSetFlexAlign", plv_op_ObjSetFlexAlign },
     { "ObjSetFlexFlow", plv_op_ObjSetFlexFlow },
+    { "ObjSetFlexGrow", plv_op_ObjSetFlexGrow },
+    { "ObjSetFlexInNewTrack", plv_op_ObjSetFlexInNewTrack },
+    { "ObjSetFloating", plv_op_ObjSetFloating },
+    { "ObjSetGestureBubble", plv_op_ObjSetGestureBubble },
     { "ObjSetHeight", plv_op_ObjSetHeight },
+    { "ObjSetHidden", plv_op_ObjSetHidden },
+    { "ObjSetIgnoreLayout", plv_op_ObjSetIgnoreLayout },
     { "ObjSetLayout", plv_op_ObjSetLayout },
+    { "ObjSetName", plv_op_ObjSetName },
+    { "ObjSetOverflowVisible", plv_op_ObjSetOverflowVisible },
     { "ObjSetParent", plv_op_ObjSetParent },
     { "ObjSetPos", plv_op_ObjSetPos },
+    { "ObjSetPressLock", plv_op_ObjSetPressLock },
+    { "ObjSetRadioButton", plv_op_ObjSetRadioButton },
+    { "ObjSetScrollChain", plv_op_ObjSetScrollChain },
+    { "ObjSetScrollChainHor", plv_op_ObjSetScrollChainHor },
+    { "ObjSetScrollChainVer", plv_op_ObjSetScrollChainVer },
+    { "ObjSetScrollDir", plv_op_ObjSetScrollDir },
+    { "ObjSetScrollElastic", plv_op_ObjSetScrollElastic },
+    { "ObjSetScrollMomentum", plv_op_ObjSetScrollMomentum },
+    { "ObjSetScrollOnFocus", plv_op_ObjSetScrollOnFocus },
+    { "ObjSetScrollOne", plv_op_ObjSetScrollOne },
+    { "ObjSetScrollSnapX", plv_op_ObjSetScrollSnapX },
+    { "ObjSetScrollSnapY", plv_op_ObjSetScrollSnapY },
+    { "ObjSetScrollWithArrow", plv_op_ObjSetScrollWithArrow },
+    { "ObjSetScrollable", plv_op_ObjSetScrollable },
+    { "ObjSetScrollbarMode", plv_op_ObjSetScrollbarMode },
+    { "ObjSetSendDrawTaskEvents", plv_op_ObjSetSendDrawTaskEvents },
     { "ObjSetSize", plv_op_ObjSetSize },
+    { "ObjSetSnappable", plv_op_ObjSetSnappable },
+    { "ObjSetStateTrickle", plv_op_ObjSetStateTrickle },
     { "ObjSetStyleAlign", plv_op_ObjSetStyleAlign },
     { "ObjSetStyleAnimDuration", plv_op_ObjSetStyleAnimDuration },
     { "ObjSetStyleArcColor", plv_op_ObjSetStyleArcColor },
@@ -3056,14 +3587,19 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "SpinboxDecrement", plv_op_SpinboxDecrement },
     { "SpinboxGetValue", plv_op_SpinboxGetValue },
     { "SpinboxIncrement", plv_op_SpinboxIncrement },
+    { "SpinboxSetDecPointPos", plv_op_SpinboxSetDecPointPos },
+    { "SpinboxSetDigitCount", plv_op_SpinboxSetDigitCount },
     { "SpinboxSetDigitFormat", plv_op_SpinboxSetDigitFormat },
     { "SpinboxSetRange", plv_op_SpinboxSetRange },
+    { "SpinboxSetRollover", plv_op_SpinboxSetRollover },
     { "SpinboxSetStep", plv_op_SpinboxSetStep },
     { "SpinboxSetValue", plv_op_SpinboxSetValue },
     { "SwitchCreate", plv_op_SwitchCreate },
+    { "SwitchSetOrientation", plv_op_SwitchSetOrientation },
     { "TableCreate", plv_op_TableCreate },
     { "TableGetCellValue", plv_op_TableGetCellValue },
     { "TableGetSelectedCell", plv_op_TableGetSelectedCell },
+    { "TableSetCellCtrl", plv_op_TableSetCellCtrl },
     { "TableSetCellValue", plv_op_TableSetCellValue },
     { "TableSetColumnCount", plv_op_TableSetColumnCount },
     { "TableSetColumnWidth", plv_op_TableSetColumnWidth },
@@ -3079,11 +3615,12 @@ const plv_op_entry_t plv_gen_ops[] = {
     { "TextareaSetMaxLength", plv_op_TextareaSetMaxLength },
     { "TextareaSetOneLine", plv_op_TextareaSetOneLine },
     { "TextareaSetPasswordMode", plv_op_TextareaSetPasswordMode },
+    { "TextareaSetPasswordShowTime", plv_op_TextareaSetPasswordShowTime },
     { "TextareaSetPlaceholderText", plv_op_TextareaSetPlaceholderText },
     { "TextareaSetText", plv_op_TextareaSetText },
 };
 
-const int plv_gen_op_count = 280;
+const int plv_gen_op_count = 333;
 
 /* StyleSetProp: one setter per style property, sorted by key. */
 

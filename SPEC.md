@@ -1,6 +1,6 @@
 # PsychLVGL specification
 
-Status: implemented through phase 2. Specification version 0.1, 2026-09-22; section 14 records every deviation. Sections 5 and 7 also list the phase 2 subcommands and marshaling rules.
+Status: implemented through phase 3. Specification version 0.1, 2026-09-22; section 14 records every deviation. Sections 5 and 7 also list the phase 2 and phase 3 subcommands and marshaling rules.
 
 `PsychLVGL` is a MEX binding of LVGL 9 for MATLAB and GNU Octave. It draws
 retained-mode GUI panels inside a Psychtoolbox (PTB) onscreen window. LVGL
@@ -31,8 +31,8 @@ displays, and touch-style interfaces.
 - Generated bindings for about 120 core functions, selected by an allowlist,
   plus all `lv_obj_set_style_*` setters.
 - Mouse, wheel, keyboard, and text input from PTB functions.
-- A later phase that loads user interfaces exported as C code by the LVGL Pro
-  editor.
+- User interfaces that the LVGL editor (LVGL Pro) saves as XML, parsed in C
+  and interpreted in MATLAB at run time, with no compiler (phase 3).
 - MATLAB R2023a and Octave 10.1 on Windows, verified. Linux verified in CI.
   macOS on Apple silicon (`maca64`) is a build target with CI jobs of its own:
   MATLAB R2023b, Homebrew Octave, and the native smoke test on a CGL context.
@@ -42,7 +42,8 @@ displays, and touch-style interfaces.
 
 - Software rendering at run time. A software build variant exists for tests
   only.
-- Runtime XML parsing. LVGL removed the open-source XML loader in 9.5.0.
+- LVGL's own XML engine. LVGL removed the open-source loader in 9.5.0; phase 3
+  interprets the editor's XML in MATLAB instead (section 13).
 - Callbacks from LVGL into MATLAB code. Events are queued and polled.
 - More than one display or PTB window.
 - Any code shared with other bindings. This project is self-contained.
@@ -58,7 +59,8 @@ displays, and touch-style interfaces.
 | Octave | 10.1 verified, 8.x expected | user install | `mkoctfile --mex` with the bundled MinGW gcc. |
 | CMake | 3.16 or later | build machine | Builds the LVGL static library with the project `lv_conf.h`. |
 | Python and uv | Python 3.10 or later, pycparser 2.22 or later, pymsvc on Windows, doxygen | developer machine only | Runs `gen_json.py` and `gen/generate.py`. Generated files are committed. |
-| LVGL Pro editor or CLI | current | developer machine, phase 3 only | Exports XML user interfaces as C. Community license is free for personal and open-source use. |
+| LVGL editor (LVGL Pro) | current | user's choice, phase 3 only | Saves user interfaces as XML, which `PsychLVGLLoadXML` interprets. Community license is free for personal and open-source use. |
+| pugixml | latest release, pinned in `third_party/PINS.md` | phase 3, compiled into the core static library | XML parser for `ParseXML`. MIT. Octave has no built-in XML reader, so parsing happens in C. |
 
 LVGL notes that the OpenGL driver API is experimental. All driver calls live in
 one file, `src/plv_display.c`, so an API change touches one place.
@@ -297,6 +299,7 @@ Subcommand names for generated functions come from the LVGL name with the
 | FontDelete | `PsychLVGL('FontDelete', font)` | Raises `psychlvgl:InUse` while a style or an object names the font. |
 | ChartSetValues | `PsychLVGL('ChartSetValues', chart, series, values)` | Copies a numeric vector into the series' own array, point 1 first. NaN and the points past the end become gaps. |
 | ChartGetValues | `values = PsychLVGL('ChartGetValues', chart, series)` | 1xN double in screen order; gaps are NaN. |
+| ParseXML | `tree = PsychLVGL('ParseXML', pathOrText)` | Phase 3. Parses an XML file, or XML text when the argument contains `<`, with pugixml. Returns the top-level elements as a 1xN struct array with fields `tag`, `attributes`, `attr_names`, `text` and `children`; section 7.6. Needs no `Init`. Errors: `psychlvgl:XML` with pugixml's description, the byte offset, the line and the column. |
 
 ### 5.3 Generated subcommands
 
@@ -320,6 +323,7 @@ Initial allowlist, about 120 functions plus all style setters:
 | table | `lv_table_create`, `lv_table_set_cell_value`, `lv_table_set_row_count`, `lv_table_set_column_count`, `lv_table_set_column_width`, `lv_table_get_selected_cell`, `lv_table_get_cell_value` |
 | styles | every `lv_obj_set_style_<prop>` from `lv_obj_style_gen.h`, selector optional with default `LV_PART_MAIN` |
 | chart (phase 2) | `lv_chart_create`, `lv_chart_set_type`, `lv_chart_get_type`, `lv_chart_set_point_count`, `lv_chart_get_point_count`, `lv_chart_set_axis_range`, `lv_chart_set_axis_min_value`, `lv_chart_set_axis_max_value`, `lv_chart_set_update_mode`, `lv_chart_get_update_mode`, `lv_chart_set_div_line_count`, `lv_chart_refresh`, `lv_chart_add_series`, `lv_chart_remove_series`, `lv_chart_hide_series`, `lv_chart_set_series_color`, `lv_chart_get_series_color`, `lv_chart_set_x_start_point`, `lv_chart_get_x_start_point`, `lv_chart_set_all_values`, `lv_chart_set_next_value`, `lv_chart_set_series_values`, `lv_chart_set_series_value_by_id`, `lv_chart_get_pressed_point`, `lv_chart_add_cursor`, `lv_chart_remove_cursor`, `lv_chart_set_cursor_pos_x`, `lv_chart_set_cursor_pos_y`, `lv_chart_set_cursor_point` |
+| phase 3, for the XML attributes | `lv_obj_set_scrollbar_mode`, `lv_obj_set_scroll_snap_x`, `lv_obj_set_scroll_snap_y`, `lv_obj_set_scroll_dir`, `lv_obj_set_ext_click_area`, `lv_obj_set_flex_grow`, `lv_obj_set_name`, `lv_obj_find_by_name`, the 26 per-flag setters `lv_obj_set_hidden` to `lv_obj_set_flex_in_new_track`, `lv_label_set_recolor`, `lv_label_set_text_selection_start`, `lv_label_set_text_selection_end`, `lv_switch_set_orientation`, `lv_bar_set_orientation`, `lv_arc_set_start_angle`, `lv_arc_set_end_angle`, `lv_arc_set_bg_start_angle`, `lv_arc_set_bg_end_angle`, `lv_arc_set_change_rate`, `lv_textarea_set_password_show_time`, `lv_spinbox_set_rollover`, `lv_spinbox_set_digit_count`, `lv_spinbox_set_dec_point_pos`, `lv_table_set_cell_ctrl`, `lv_chart_set_hor_div_line_count`, `lv_chart_set_ver_div_line_count`, `lv_image_set_pivot_x`, `lv_image_set_pivot_y` (D52) |
 | image (phase 2) | `lv_image_create`, `lv_image_set_src`, `lv_image_set_offset_x`, `lv_image_set_offset_y`, `lv_image_set_rotation`, `lv_image_set_pivot`, `lv_image_set_scale`, `lv_image_set_scale_x`, `lv_image_set_scale_y`, `lv_image_set_antialias`, `lv_image_set_inner_align`, `lv_image_get_src_width`, `lv_image_get_src_height`, `lv_image_get_rotation`, `lv_image_get_scale` |
 
 `lv_obj_create` and every `lv_<widget>_create` return a new handle. Getters
@@ -368,6 +372,12 @@ follows `Screen('OpenWindow')` and `Screen('Close')`, and
 | `m/PsychLVGLEvents.m` | `decode` and `filter`. |
 | `m/PsychLVGLOp.m` | Generated struct of opcodes. |
 | `m/PsychLVGLDemo.m` | Demo: Gabor patch controlled by a slider, a dropdown, a text area. Phase 2 adds a contrast history chart and a style shared by two widgets. |
+| `m/PsychLVGLLoadXML.m` | `[root, named] = PsychLVGLLoadXML(file [, parent] [, opts])`. Phase 3. Builds the user interface of an LVGL editor `<screen>` or `<component>` file with ordinary PsychLVGL calls. `named` holds the handles by `name` attribute and the subject table in `named.subjects`. `opts`: `AssetDir`, `Consts`, `Warn`, `Globals`, `ComponentDirs`. |
+| `m/PsychLVGLXMLToM.m` | `PsychLVGLXMLToM(file, outFile [, opts])`. Phase 3. Writes the same calls as a function `[root, named] = name(parent, assetDir)`. |
+| `m/PsychLVGLSubjects.m` | Phase 3. The subject table of an XML interface: `create`, `add`, `bind`, `trigger`, `apply`, `update` (once per frame with the events), `set`, `get`. |
+| `m/PsychLVGLImageFromFile.m` | `img = PsychLVGLImageFromFile(path)`. Phase 3. `imread` plus `ImageFromArray`, with transparency kept. |
+| `m/PsychLVGLXMLDemo.m` | Phase 3 demo: the Gabor of `PsychLVGLDemo`, with its panel loaded from `tests/xml/demo/gabor_panel.xml` and driven by subjects. `PsychLVGLXMLDemo([], file)` saves a screenshot. |
+| `m/private/plv_xml_*.m` | Phase 3. The interpreter (`plv_xml_run`), its two emitters (`plv_xml_emit_exec`, `plv_xml_emit_write`), and option and literal helpers. |
 | `m/PsychLVGLImageFromTexture.m` | `img = PsychLVGLImageFromTexture(win, tex)`. Phase 2. Reads the OpenGL name, target and orientation of a Psychtoolbox texture with `Screen('GetOpenGLTexture')` and calls `ImageFromTexture`, with `transposed` set for a texture made from a matrix. Refuses rectangle textures with `psychlvgl:Texture`. |
 
 Every one of the four uses `onCleanup` or `try` around `Screen('EndOpenGL')`,
@@ -392,6 +402,16 @@ so an error inside the wrapped region still leaves Psychtoolbox in 2D mode.
 | `psychlvgl:Font` | Unknown font name, or a font file that cannot be read or parsed. |
 | `psychlvgl:InUse` | `StyleDelete`, `ImageDelete` or `FontDelete` on a resource that an object or a style still uses. Phase 2. |
 | `psychlvgl:Texture` | `PsychLVGLImageFromTexture` got a texture LVGL cannot draw, one that is not `GL_TEXTURE_2D`. Phase 2. |
+| `psychlvgl:XML` | `ParseXML` could not read or parse its input, or `PsychLVGLLoadXML` got a file whose root element is not `<screen>`, `<component>` or `<globals>`. Phase 3. |
+
+`PsychLVGLLoadXML` and `PsychLVGLXMLToM` also report four kinds of problem
+through the `Warn` option, by default as MATLAB warnings with these
+identifiers, once per distinct message and load: `psychlvgl:XMLUnknown` (an
+element or attribute that is not part of the format), `psychlvgl:XMLUnsupported`
+(part of the format that PsychLVGL does not map), `psychlvgl:XMLReference` (a
+constant, style, font, image, subject or prop that does not resolve) and
+`psychlvgl:XMLValue` (a value that does not parse). The rest of the file still
+loads.
 
 ## 6. Input handling
 
@@ -556,6 +576,32 @@ pushes when the code bit is set in the target slot's mask. The push never
 allocates. On overflow the oldest record is dropped. `Poll` copies the live
 records into one `mxCreateDoubleMatrix(n, 5)` and resets the ring.
 
+### 7.6 XML node tree (phase 3)
+
+`ParseXML` returns one struct array per level of the document, each made once
+at its final size: the element children are counted first, then
+`mxCreateStructMatrix(1, n, 5, fields)` is filled. The walk recurses on the C
+stack and refuses documents deeper than 256 elements.
+
+| Field | Content |
+|---|---|
+| `tag` | Element name, char. |
+| `attributes` | 1x1 struct, one char field per attribute, in document order. |
+| `attr_names` | `{}` when every attribute name is a valid field name; otherwise a 1xN cellstr of the original names, in the order of `fieldnames(attributes)`. |
+| `text` | The text and CDATA children, each trimmed, joined by one space. `''` when there are none. |
+| `children` | The element children, 1xN, or 0x0 with the same five fields. |
+
+Field names follow `matlab.lang.makeValidName` in both engines: a character
+that is not a letter, digit or underscore becomes `_`, a name that does not
+start with a letter or that is a MATLAB or Octave keyword gets an `x` in
+front, a name is cut to 63 characters, and a name that is then equal to an
+earlier one gets `_2`, `_3` and so on. `bind_text-fmt` becomes
+`bind_text_fmt`, `end` becomes `xend`. Comments, declarations and processing
+instructions are not returned. Character data follows section 7.3: UTF-8
+bytes on Octave, UTF-16 on MATLAB, decoded in C with no call to
+`mxCreateString`. A file's encoding comes from its byte order mark or its
+declaration; text passed as an argument is UTF-8 after the usual conversion.
+
 ## 8. State, lifecycle, and error handling
 
 ### 8.1 State
@@ -704,9 +750,12 @@ PsychLVGL/
     gl/test_gl_init.m gl/test_gl_render.m gl/test_gl_click.m gl/test_gl_resize.m
   perf/
     PsychLVGLPerf.m
-  plugin/                 phase 3, LVGL Pro C export goes here
+  tests/xml/              phase 3, XML fixtures, the demo panel, LVGL examples
+  docs/images/            README screenshot
+  tools/                  apply_lvgl_patches.sh, CaptureReadmeScreenshot.m
   third_party/
     lvgl/                 submodule v9.6.0
+    pugixml/              v1.16, phase 3, a plain clone until it becomes a submodule
     tracy/                submodule, optional
 ```
 
@@ -754,7 +803,6 @@ Key settings:
    `dist/PsychLVGL.<mexext>`.
 5. `build.m gen` runs the generator. `build.m test` runs `run_tests.m`.
    `build.m test-sw` builds the software variant used by the no-GL tests.
-   `build.m plugin <dir>` compiles an LVGL Pro C export into the MEX (section 13).
 
 ### 10.4 CI
 
@@ -793,6 +841,21 @@ other source file is identical. `run_tests.m` runs under both engines:
   counted.
 - `FrameChecksum` (test builds only): CRC32 of the software buffer against a
   stored value for a fixed scene and fixed ticks.
+- `test_xml_parse.m` (phase 3): the node tree, renamed attributes, text and
+  CDATA, entities, empty elements, a file, non-ASCII text, and the error id
+  and message of a parse error.
+- `test_xml_load.m` (phase 3): `tests/xml/main.xml` through
+  `PsychLVGLLoadXML`: names and handles, sizes, a percentage width, styles with
+  selectors, chained constants, component props and defaults, a component that
+  extends a component, fonts and images; `PsychLVGLXMLToM` on the same file
+  and the generated function run, with the same names and sizes;
+  `tests/xml/unknown.xml` with one warning per distinct problem; the `Consts`,
+  `AssetDir` and `Globals` options; the demo panel; and eight example files
+  copied from the LVGL tree.
+- `test_xml_subjects.m` (phase 3): `tests/xml/subjects.xml`: initial values,
+  events that change subjects, the increment, set and toggle events, flag,
+  state and style bindings, real clicks through `Update`, clamping, and a
+  deleted widget.
 
 ### 11.2 With PTB and a GPU
 
@@ -808,6 +871,9 @@ other source file is identical. `run_tests.m` runs under both engines:
   `Poll`, visual state change in the read-back image.
 - `test_gl_resize.m`: `Init` with a new size returns a new texture id, old
   handles invalid, re-wrapped PTB texture draws.
+- `test_gl_xml.m` (phase 3): `tests/xml/main.xml` in the window: the color of
+  a style from `globals.xml`, the background of the screen's view, a TTF
+  title, and a style with a `pressed` selector, all in the read-back image.
 
 ### 11.3 Native smoke test
 
@@ -818,13 +884,16 @@ and no `kCGLPFAOpenGLProfile` attribute, which is GL 2.1. The macOS branch asks
 for `kCGLPFAAccelerated` first and falls back to `kCGLPFARendererID` with
 `kCGLRendererGenericFloatID`, the Apple software renderer, because a CI runner
 is a virtual machine. It then runs the same sequence as the other platforms and
-reads the panel texture back through a framebuffer object.
+reads the panel texture back through a framebuffer object. Before the GL part
+it parses a short XML document through `plv_xml.h`, the C interface of the
+parser, so the C++ part of the core library runs wherever the smoke test runs.
 
 ### 11.4 Interactive
 
 `PsychLVGLDemo.m`: a Gabor patch whose contrast follows a slider, a dropdown
 that selects the spatial frequency, a text area for a subject id, and a status
-label. `perf/PsychLVGLPerf.m` prints the table described in section 9.4.
+label. `PsychLVGLXMLDemo.m` (phase 3) shows the same stimulus with its panel
+loaded from XML. `perf/PsychLVGLPerf.m` prints the table described in section 9.4.
 
 ## 12. Risks, alternatives considered, open questions
 
@@ -863,8 +932,16 @@ label. `perf/PsychLVGLPerf.m` prints the table described in section 9.4.
   glyph atlas built from `lv_font` bitmaps. LVGL's draw unit API is
   semi-private and changes between minor versions. The one benefit, GL state
   save and restore, does not matter because PTB isolates the userspace context.
-- Runtime XML loading. Rejected: LVGL 9.5.0 removed the open-source XML engine.
-  Pinning 9.4.0 would freeze the binding on an old release. See section 13.
+- LVGL's XML engine at run time. Rejected: LVGL 9.5.0 removed the open-source
+  engine, and pinning 9.4.0 would freeze the binding on an old release.
+  Vendoring the removed engine (72 files against 9.4 internals) was rejected
+  for the same maintenance reason. Phase 3 parses the editor's XML with pugixml
+  and interprets it in MATLAB instead (section 13, D50).
+- LVGL Pro C export compiled into the MEX as a plugin (the version 0.1 phase 3).
+  Rejected 2026-09-23: Psychtoolbox users install a binary MEX and most have
+  no compiler, so a layout change that needs a rebuild is unusable for them,
+  and the export includes `lvgl_private.h`, which breaks on minor LVGL
+  upgrades. See D50.
 - Handles as raw pointer bits in a double. Rejected: no use-after-delete
   detection. The slot table costs 16 bytes per object.
 - `Poll` returning a struct array. Rejected as the primary form: one
@@ -891,13 +968,14 @@ label. `perf/PsychLVGLPerf.m` prints the table described in section 9.4.
 |---|---|
 | 1 | Lifecycle, GL loader, NanoVG display, indevs, handles, events, generator, allowlist of section 5.3, `Stats`, software test variant, GL tests, demo. |
 | 2 | Chart (int32 array marshaling, series handles), `lv_style_t` handles (`StyleCreate`, `StyleSetProp`, `ObjAddStyle`), images from PTB textures by wrapping a PTB texture's GL id with `lv_opengles_texture_create_from_texture_id` or an `lv_image_dsc_t` handle, TTF fonts through `LV_USE_TINY_TTF`, Tracy GPU zones. |
-| 3 | LVGL Pro C export as a UI plugin. The editor or CLI exports `<name>_gen.c` and `<name>_gen.h` with `lv_obj_t* <name>_create(lv_obj_t* parent)` functions (screens take no parent), `lv_obj_set_name_static` on named objects, and global `lv_subject_t` variables. The export includes `lvgl_private.h`, so it must compile against the same LVGL tree and `lv_conf.h`. `build.m plugin <dir>` compiles the export plus a hand-written `plugin_table.c` with `{name, create_fn}` and `{name, lv_subject_t*}` arrays into the MEX. New subcommands: `CreateComponent(name, parentH)` calls the create function, walks the new subtree with `lv_obj_get_child`, registers slots with the `FROM_PLUGIN` flag and the event callback, and returns the root handle; `FindByName(rootH, name)` wraps `lv_obj_find_by_name`; `SubjectList`, `SubjectGet(name)`, `SubjectSet(name, value)` for int, string, and color subjects; subject observers push a synthetic `SUBJECT_CHANGED` record into the event ring with the subject index as target. A UI change needs a rebuild. |
+| 3 | XML user interfaces loaded at run time, interpreted in MATLAB. The LVGL editor (LVGL Pro, online or desktop, Community license) saves each screen and component as XML. The MEX gains one parser subcommand, `ParseXML(path or text)`, built on pugixml compiled into the core static library so the MEX stays C, which returns the document as a plain node tree: a struct array with `tag`, `attributes` (struct) and `children`. Everything LVGL-specific lives in M-files. `PsychLVGLLoadXML(file, parent)` walks the tree and issues the existing procedural calls, returns the root handle and a struct of named handles, and resolves fonts and images relative to the XML file with an override hook. `PsychLVGLXMLToM(file, out)` writes the same calls as a script, so a layout can be read and edited without the editor. Phase 3 covers this subset of the LVGL XML format: widgets in the allowlist with their attributes, all `style_*` attributes with selectors through the generated setters, percent sizes and alignment, `<consts>`, `<styles>` through the phase 2 style handles, `<component>` with `<api>` props and `<view>`, TTF fonts and images through the phase 2 handles, and subjects with `bind_*` attributes mapped onto the event ring. An unknown tag or attribute produces one warning naming it, never a silent skip. The format is LVGL's and moves with LVGL releases; the interpreter tracks the docs in `third_party/lvgl/docs` and the editor output, and Pro-only widgets stay unmapped. |
 
 ## 14. Deviations from version 0.1
 
-Phases 1 and 2 are implemented. Everything below differs from sections 1 to
+Phases 1 to 3 are implemented. Everything below differs from sections 1 to
 13 above. Section 13 stays the plan of record. Sections 5 and 7 list the phase
-2 subcommands and rules; everything else about phase 2 is in section 14.4.
+2 and phase 3 subcommands and rules; everything else about phase 2 is in
+section 14.4 and about phase 3 in section 14.5.
 
 ### 14.1 LVGL 9.6.0 facts that changed the design
 
@@ -967,3 +1045,20 @@ Phases 1 and 2 are implemented. Everything below differs from sections 1 to
 | D47 | Tests for phase 2. The no-GL suite gains `test_chart`, `test_styles`, `test_fonts` and `test_images`, and `test_helpers` checks `PsychLVGLImageFromTexture` against a stub `GetOpenGLTexture`; 517 checks pass under MATLAB R2023a and Octave 10.1 on Windows and under Octave 6.4 on Linux (WSL, Ubuntu 22.04), up from 355. The GL suite gains `test_gl_chart`, `test_gl_style`, `test_gl_image` and `test_gl_font`; 65 checks pass with Psychtoolbox 3.0.22 on an OpenGL 4.6 context. `tests/native/smoke_gl.c` gains a second scene with a shared style, a line chart (its series check reworked in D49), an upright and a transposed texture image (the transposed one with the default minification filter, as Psychtoolbox leaves it, and checked in all four quadrants so a transpose is not mistaken for a flip) and a TTF label, and it reads which framebuffer row holds panel row 0 before it checks the image orientation. The TTF tests use `examples/libs/tiny_ttf/Ubuntu-Medium.ttf` from the LVGL submodule, so they need no font of the host. | The brief's test list. The smoke test is what CI's `smoke-gl-linux` and `smoke-gl-macos` run, so the new draw paths get automated GL coverage on Mesa and on the Apple software renderer. |
 | D48 | The first version of the D45 Shutdown freed a screen and then read it. `plv_clear_widgets` kept the old active screen, deleted every registered parentless object in its slot loop, and then called `lv_obj_is_valid` on the old screen before deleting it. `ScreenActive` registers the active screen, so the loop had already freed it, and LVGL 9.6's `lv_obj_is_valid` reads `obj->parent` through `lv_obj_is_in_widget_tree`. The Windows heap left the memory readable, so the Windows suite passed; glibc and macOS crashed on the first `Shutdown` of `test_dispatch` in every Linux and macOS CI job of the phase 2 commit (run 35842649421), and gdb under WSL put the fault in `lv_obj_is_in_widget_tree`. Shutdown now deletes the old active screen first, once, whether it is registered or not, and the slot loop then finds its slot free; no freed pointer is read. The fresh screen that Shutdown loads is not registered; in the persistent build the next `Init` replaces and deletes it, so it never outlives one Init cycle, and `lv_deinit` frees it in the software build. `tests/test_shutdown.m` runs Init, ScreenActive, ObjCreate on the screen and Shutdown three times, then an unloaded screen with a child, a styled screen, a chart with a series, and a `ScreenLoad` of a created screen. Measured under WSL with Octave 6.4: the old code ends in a segmentation fault in that test, the fixed code passes the whole suite, 517 checks. | A use after free that only a stricter allocator shows. The test has to run on Linux or macOS to catch a regression, which CI does. |
 | D49 | Two fixes from the same CI run. `smoke-gl-macos` failed "the chart renders a non-flat plot" with 158 differing pixels against a threshold of 200, where Mesa gave 554: the check sampled every second pixel, so one pixel grid and series lines were counted or missed by parity, and Apple's software renderer rasterizes differently. The chart in the smoke scene now draws its series 6 px wide (`LV_PART_ITEMS` line width), and the check counts the red series pixels over every pixel of the chart area. Nothing else in the scene is red, so a chart without its series gives 0; the threshold is 300. Measured on Windows (Intel GL 4.6): 1324 series pixels, and 0 with the series hidden, which fails the check as it should. `CMakeLists.txt` also sets `CMAKE_OSX_DEPLOYMENT_TARGET` to 11.0 before `project()` when the caller has not set one, because MATLAB's `mex` links with `-mmacosx-version-min=11.0` and static libraries built for the runner's macOS made the linker print one warning per object file of `liblvgl.a` and `libplv_core.a`. PsychImGui does the same. | A check that measures the feature, not the rasterizer; a clean macOS link log. |
+| D50 | Phase 3 is redefined (section 13, row 3): the editor's XML is parsed by a pugixml `ParseXML` subcommand and interpreted in MATLAB by `PsychLVGLLoadXML` and `PsychLVGLXMLToM`. The LVGL Pro C export plugin, `build.m plugin`, `CreateComponent`, `SubjectList`, `SubjectGet`, `SubjectSet` and the `FROM_PLUGIN` slot flag are dropped from the plan; `FindByName` stays. Section 1, section 2 and section 12 are updated to match. | The user decided on 2026-09-23 that a UI path needing a C compiler is a bridge too far for Psychtoolbox users, who install binaries. The editor already produces XML, so parsing it and interpreting it in M-code gives the same separation of layout from experiment logic with no toolchain, and the interpreter is patchable by users. Octave has no `xmlread`, which is why the parser is in C. |
+
+### 14.5 Phase 3
+
+| # | Deviation | Reason |
+|---|---|---|
+| D51 | pugixml v1.16 (commit `c8033ce9`, MIT) is a plain clone in `third_party/pugixml`, not a submodule yet, and CI clones the same commit in a "Fetch pugixml" step with `PUGIXML_COMMIT`, as it does for LVGL. `CMakeLists.txt` compiles `src/pugixml.cpp` and `src/core/plv_xml.cpp` into `plv_core` with `PUGIXML_NO_XPATH`, `PUGIXML_NO_EXCEPTIONS` and `PUGIXML_NO_STL`, and with `-fno-exceptions -fno-rtti` for GCC and Clang. `project()` now enables C++ for every build, where Tracy enabled it on demand. `plv_xml.h` is a C interface that knows nothing of LVGL, so `ParseXML` needs no `Init`; the document is made with placement new in `malloc` memory, which keeps `operator new` out. With those flags the only C++ runtime symbol left is sized `operator delete`, from the deleting destructors of pugixml's writer classes (measured with `nm` on the MinGW g++ 14.2 object), so `build.m` adds `-lstdc++` to the MEX link for GCC and `-lc++` on macOS; MSVC links its runtime anyway. `build.m` also passes `CMAKE_CXX_COMPILER` from `mkoctfile -p CXX`, its first word only, because Homebrew answers `clang++ -std=gnu++17`. The first configure of a build folder made before this change fails once, and `build.m`'s existing retry wipes the folder and configures again. | Octave has no XML reader (D50). XPath, exceptions and the STL are not needed to walk a tree, and leaving them out keeps the runtime dependency to one symbol. |
+| D52 | The allowlist grows by 53 functions, from 280 to 333 generated subcommands: the setters the XML attributes need (scroll bar mode, scroll snap, scroll direction, extended click area, flex grow, label recolor and selection, switch and bar orientation, the four single arc angles and the change rate, password show time, spinbox rollover, digit count and decimal point, table cell control, chart division line counts, image pivot x and y), `lv_obj_set_name` and `lv_obj_find_by_name`, and one setter per object flag, `lv_obj_set_hidden` to `lv_obj_set_flex_in_new_track`. LVGL 9.6 marks `lv_obj_add_flag` and `lv_obj_remove_flag` deprecated and logs a warning on every call, so the interpreter uses the per-flag setters. `ParseXML` follows `ChartGetValues` in the hand-written table, so every generated opcode moved by one again, as in D40. `ObjFindByName` is the `FindByName` that D50 keeps. The interpreter calls `ObjSetName` for every named widget, so `ObjFindByName` finds it. | The widget attributes of the format come first in the brief. Adding a setter costs one generated handler and one generated test. |
+| D53 | `ParseXML` details that section 13 leaves open: an argument that contains `<` is XML text, any other is a path, and a path that does not open raises `psychlvgl:XML` "neither a readable file nor XML text"; no file name contains `<` on Windows, so the rule never has to ask the file system about text. The result is the list of top-level elements, which is one element for any well-formed document. Section 7.6 has the fields, the naming rule and the text rule. A parse error reads "Start-end tags mismatch at offset 8 (line 1, column 9)". A document deeper than 256 elements raises `psychlvgl:XML`. A document being converted when an `mx` call raises is freed by the next `ParseXML`, because the error path does not return. | Keeps the one argument of the brief and makes the error useful. |
+| D54 | `plv_ret_str`, which every generated `const char *` getter uses, now decodes UTF-8 into UTF-16 on MATLAB instead of calling `mxCreateString`, which reads the bytes in the user's code page. Text that is not ASCII now comes back from `LabelGetText` and the other getters as it went in. Octave is unchanged: its char is UTF-8 bytes. | Section 7.3 says "char from UTF-8"; `ParseXML` needed the conversion, and the getters had the same bug. |
+| D55 | `PsychLVGLLoadXML` and `PsychLVGLXMLToM` share one interpreter, `m/private/plv_xml_run.m`, which calls an emitter for every change it makes. The execute emitter calls `PsychLVGL`, `PsychLVGLSubjects` and `PsychLVGLImageFromFile` at once and uses handles as references; the write emitter appends M code and uses variable names. The interpreter itself only reads: `ParseXML`, `Enum` (to check enum names, so a typo warns rather than aborts the load), `FontList` and `PsychLVGLOp`. `PsychLVGLXMLToM` writes a function `[root, named] = name(parent, assetDir)`, not the script that section 13 names; references and components are expanded when it writes, so the function needs no XML. Asset paths under the asset folder are written relative to `assetDir`. Percentages and `content` appear in the written code as the numbers LVGL stores for them, for example 536871012 for 100%. The two front ends report the same warnings and return the same fields in the same order; `named.subjects` comes first in both. | The brief asks for one core so the two cannot drift. A function keeps the generated variables out of the caller's workspace and takes the parent like the loader does. |
+| D56 | Where the format sources disagree, the editor's output wins, and both forms are read. The selector after a local style property is written with `-` by the editor, by the Pro documentation and in every one of the 144 XML examples in LVGL 9.6's `examples/` tree (`style_bg_color-pressed`, `style_bg_opa-indicator-pressed`); the removed 9.4 engine split on `:`. A style is applied with a `<style name selector>` child in the editor's files and with a `styles="name name:knob"` attribute in the 9.4 engine. Parameters of a property are separate attributes with a hyphen (`bind_text-fmt`, `options-mode`, `value-anim`, `selected-animated`). Sources used: the LVGL Pro documentation at lvgl.io/docs/pro (components, api, styles, constants, fonts, images, screens, data binding), the example files in `third_party/lvgl/examples`, whose tree says it is written in the editor's format, and the widget schemas and parsers of LVGL v9.4.0 (`xmls/*.xml`, `src/others/xml`) for attribute names and value rules. `docs/src/xml.mdx` in the 9.6 tree only points at the Pro documentation. The editor itself and viewer.lvgl.io were not run. | Recorded as the brief asks. |
+| D57 | Resolution rules. `globals.xml` is read from the file's folder or up to three folders above, or from `opts.Globals`. A component is found by its tag in the folder of the loaded file, the folder of `globals.xml`, or `opts.ComponentDirs`, and parsed on first use. `$prop` and `#const` replace a whole attribute value; constants may refer to constants; `opts.Consts` replaces a constant everywhere. A prop without a value or default drops its attribute with no warning, as LVGL does. A component's instance attributes that are not props override its view's attributes; a component can extend a widget or another component. Styles are made on first use, once per load, and shared. A repeated `name` gets `_2`, `_3` in document order. A `<screen>` fills the parent it is given, by default the active screen, so its view attributes apply to that object; a `<component>` file becomes one child. Font and image `src_path` values are relative to the folder of the file that declares them, which for `globals.xml` is the project root the Pro documentation names, or to `opts.AssetDir`. `bin`, `tiny_ttf` and `freetype` fonts all load the TTF or OTF file with `FontLoad` at the declared size; `bpp`, `range`, `symbols` and `as_file` describe the editor's conversion and are not read. `data` and `file` images load with `imread` through `PsychLVGLImageFromFile`, and `color_format` is not read. An image `src` that no `<images>` entry declares is tried as a path. The attributes `help` and the elements `previews`, `preview` and `enumdef` are editor-only and are not read. | The brief leaves these open; each follows LVGL's own engine where it had a rule. |
+| D58 | Subjects are a MATLAB struct, `named.subjects`, handled by `PsychLVGLSubjects`, not LVGL observers: LVGL would run the bindings as callbacks, and MATLAB code cannot run inside one. At load time every `bind_*` attribute or element becomes a binding and every `subject_*_event` a trigger, each with `AddEvent` for its event; `apply` then pushes every subject once. Each frame `update` reads the `Poll` rows of bound widgets: a `VALUE_CHANGED` of a `bind_value` widget sets the subject from the event parameter (value, or selected index), one of a `bind_checked` widget from `ObjHasState(LV_STATE_CHECKED)`, and a trigger whose widget and event match sets, toggles or increments its subject. Every subject that changed is pushed to all its bindings except the one it came from: widget setters for values, `LabelSetText` with `sprintf(fmt, v)` for `bind_text`, the per-flag setter or the state for `bind_flag_if_*` and `bind_state_if_*`, `ObjAddStyle` and `ObjRemoveStyle` for `bind_style`, and the `ObjSetStyle<Prop>` setter for `bind_style_prop`. Int and float subjects are clamped to their `min_value` and `max_value`. A binding whose widget was deleted is dropped the first time it is written. An empty event matrix returns at once. | The event ring is the only way values leave LVGL (section 3). A MATLAB-side table can be read and set by the script with no new subcommand. |
+| D59 | Not covered, each with one warning when it appears: the widgets that are not in the allowlist (`lv_buttonmatrix`, `lv_scale`, `lv_keyboard`, `lv_tabview`, `lv_spangroup`, `lv_led`, `lv_spinner`, `lv_calendar`, `lv_line`, `lv_qrcode`, `lv_list`, `lv_menu`, `lv_msgbox`, `lv_tileview`, `lv_win`, `lv_canvas`, `lv_animimg`, `lv_imagebutton`, and the Pro-only widgets); `style_grid_column_dsc_array` and `style_grid_row_dsc_array`, which the generator cannot marshal (`gen/dropped.txt`), so grid cell attributes apply but a grid layout has no tracks; `bg_grad`, `bg_image_src`, `arc_image_src`, `bitmap_mask_src`, `transition` and `anim` style properties; `<animations>`, `play_timeline_event`, `screen_load_event`, `screen_create_event` and `event_cb`; `<translations>`, `translation_tag` and `<gradients>`; `<slot>`, `<element>` and `<param>` in a component's `<api>`; the `symbol` of a dropdown and `<lv_dropdown-list>`; `text_selection` of a text area; `bind_src` of an image; subjects other than int, float and string; `<convert>` images and `imagefont` fonts; attributes on the `<screen>` and `<component>` elements, such as `permanent`; and `extends` on a screen's view. | Each needs a type the SPEC 7.3 rules do not marshal, an LVGL feature that runs callbacks, or a widget outside the allowlist. They can be added one at a time. |
+| D60 | Tests for phase 3. The no-GL suite gains `test_xml_parse`, `test_xml_load` and `test_xml_subjects`, and `test_gen_marshal` covers the 53 new subcommands: 722 checks pass under MATLAB R2023a and Octave 10.1 on Windows and under Octave 6.4 on Linux (WSL, Ubuntu 22.04), up from 517. The GL suite gains `test_gl_xml`: 72 checks pass with Psychtoolbox 3.0.22 on an OpenGL 4.6 context (Intel Iris Xe), up from 65. `smoke_gl` gains five parser checks. The fixtures are in `tests/xml`, with eight example files copied from LVGL v9.6.0 in `tests/xml/lvgl_examples` and its MIT notice. The tests run the function that `PsychLVGLXMLToM` writes by evaluating its body in `tests/plv_run_generated.m`, because a new file in a folder on the path is not seen by every engine without a `rehash`, which D35 rules out. | The brief's test list. |
+| D61 | `PsychLVGLXMLDemo` and the README screenshot. The demo panel is `tests/xml/demo/gabor_panel.xml` with its own `globals.xml` and a component, `stat_tile.xml`; like `PsychLVGLDemo` it needs the source tree, because the release zips do not carry `tests/`. `tools/CaptureReadmeScreenshot.m` runs the demo in a scripted mode in a 1280x720 window and saves `docs/images/psychlvgl-xml-demo.png` from the whole back buffer before the flip (88 KB here). The `plugin/` folder and its `.gitignore` lines, placeholders for the dropped C export (D50), are removed, and section 10.1 lists `tests/xml` where it listed a top-level `xml/`. | The brief asks for fixtures under `tests/xml`; the coordinator asked for the screenshot. |

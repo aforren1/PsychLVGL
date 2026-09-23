@@ -7,6 +7,7 @@
  */
 #include "plv_marshal.h"
 #include "plv_internal.h"
+#include "plv_xml.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -270,6 +271,7 @@ static void op_FontLoad(int nlhs, mxArray * plhs[], int nrhs, const mxArray * pr
 static void op_FontDelete(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
 static void op_ChartSetValues(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
 static void op_ChartGetValues(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
+static void op_ParseXML(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[]);
 
 /* The order here fixes the opcodes, and m/PsychLVGLOp.m repeats it. */
 static const plv_op_entry_t plv_hand_ops[] = {
@@ -308,7 +310,8 @@ static const plv_op_entry_t plv_hand_ops[] = {
     { "FontLoad",        op_FontLoad },
     { "FontDelete",      op_FontDelete },
     { "ChartSetValues",  op_ChartSetValues },
-    { "ChartGetValues",  op_ChartGetValues }
+    { "ChartGetValues",  op_ChartGetValues },
+    { "ParseXML",        op_ParseXML }
 };
 
 #define PLV_HAND_COUNT ((int)(sizeof(plv_hand_ops) / sizeof(plv_hand_ops[0])))
@@ -874,6 +877,224 @@ static void op_ChartGetValues(int nlhs, mxArray * plhs[], int nrhs, const mxArra
         p[i] = (v == LV_CHART_POINT_NONE) ? mxGetNaN() : (double)v;
     }
     plhs[0] = out;
+}
+
+/* ---------------------------------------------------------------- ParseXML */
+
+/* Deeper documents are refused: the tree is built by recursion on the C
+ * stack, and no user interface nests anywhere near this far. */
+#define PLV_XML_MAX_DEPTH 256
+/* MATLAB's namelengthmax. */
+#define PLV_XML_NAME_MAX 63
+
+static const char * s_xml_fields[] = { "tag", "attributes", "attr_names", "text", "children" };
+
+/* A document whose tree was being built when an mx allocation raised. The
+ * next ParseXML frees it; the error path cannot, because it never returns. */
+static plv_xml_doc_t * s_xml_pending;
+
+/* Keywords of both engines. mxCreateStructMatrix accepts them, but a field
+ * with such a name cannot be written as s.name in M code. */
+static const char * s_xml_keywords[] = {
+    "__FILE__", "__LINE__", "break", "case", "catch", "classdef", "continue", "do",
+    "else", "elseif", "end", "end_try_catch", "end_unwind_protect", "endclassdef",
+    "endenumeration", "endevents", "endfor", "endfunction", "endif", "endmethods",
+    "endparfor", "endproperties", "endspmd", "endswitch", "endwhile", "enumeration",
+    "events", "for", "function", "global", "if", "methods", "otherwise", "parfor",
+    "persistent", "properties", "return", "spmd", "switch", "try", "until",
+    "unwind_protect", "unwind_protect_cleanup", "while"
+};
+
+static int plv_xml_is_keyword(const char * s)
+{
+    size_t i;
+    for(i = 0; i < sizeof(s_xml_keywords) / sizeof(s_xml_keywords[0]); i++)
+        if(strcmp(s, s_xml_keywords[i]) == 0) return 1;
+    return 0;
+}
+
+/* A valid struct field name for an XML attribute name. Returns 1 when the
+ * name had to change. The rule is makeValidName's: invalid characters become
+ * underscores, and a name that does not start with a letter, or is a
+ * keyword, gets an x in front. */
+static int plv_xml_field_name(const char * src, char dst[PLV_XML_NAME_MAX + 1])
+{
+    size_t i, o = 0;
+    int changed = 0;
+    int lead = !((src[0] >= 'A' && src[0] <= 'Z') || (src[0] >= 'a' && src[0] <= 'z'));
+
+    if(lead) { dst[o++] = 'x'; changed = 1; }
+    for(i = 0; src[i] && o < PLV_XML_NAME_MAX; i++) {
+        char c = src[i];
+        int ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+        dst[o++] = ok ? c : '_';
+        if(!ok) changed = 1;
+    }
+    if(src[i]) changed = 1;   /* truncated */
+    dst[o] = 0;
+    if(!lead && plv_xml_is_keyword(dst)) {
+        memmove(dst + 1, dst, (o < PLV_XML_NAME_MAX) ? o + 1 : o);
+        dst[0] = 'x';
+        dst[PLV_XML_NAME_MAX] = 0;
+        changed = 1;
+    }
+    return changed;
+}
+
+static mxArray * plv_xml_nodes(plv_xml_node_t first, size_t count, int depth);
+
+static mxArray * plv_xml_attributes(plv_xml_node_t node, mxArray ** names_out)
+{
+    char    stack_names[16][PLV_XML_NAME_MAX + 1];
+    const char * stack_ptrs[16];
+    char (*names)[PLV_XML_NAME_MAX + 1] = stack_names;
+    const char ** ptrs = stack_ptrs;
+    size_t n = plv_xml_attr_count(node), i, j;
+    plv_xml_attr_t a;
+    int renamed = 0;
+    mxArray * s;
+
+    if(n > 16) {
+        /* mxMalloc memory is released by the engine if a later call raises. */
+        names = (char (*)[PLV_XML_NAME_MAX + 1])mxMalloc(n * sizeof(*names));
+        ptrs  = (const char **)mxMalloc(n * sizeof(*ptrs));
+    }
+    for(a = plv_xml_attr_first(node), i = 0; a; a = plv_xml_attr_next(a), i++) {
+        renamed |= plv_xml_field_name(plv_xml_attr_name(a), names[i]);
+        /* Two attributes can sanitize to one name, and a field name must be
+         * unique, so a later one gets a numeric suffix. */
+        for(j = 0; j < i; j++) {
+            if(strcmp(names[i], names[j]) == 0) {
+                char base[PLV_XML_NAME_MAX + 1];
+                int k = 2;
+                memcpy(base, names[i], sizeof(base));
+                do {
+                    char suffix[16];
+                    size_t sl = (size_t)sprintf(suffix, "_%d", k++);
+                    size_t bl = strlen(base);
+                    if(bl + sl > PLV_XML_NAME_MAX) bl = PLV_XML_NAME_MAX - sl;
+                    memcpy(names[i], base, bl);
+                    memcpy(names[i] + bl, suffix, sl + 1);
+                    for(j = 0; j < i; j++) if(strcmp(names[i], names[j]) == 0) break;
+                } while(j < i);
+                renamed = 1;
+                break;
+            }
+        }
+        ptrs[i] = names[i];
+    }
+
+    s = mxCreateStructMatrix(1, 1, (int)n, ptrs);
+    for(a = plv_xml_attr_first(node), i = 0; a; a = plv_xml_attr_next(a), i++)
+        mxSetFieldByNumber(s, 0, (int)i, plv_ret_str(plv_xml_attr_value(a)));
+
+    if(renamed) {
+        *names_out = mxCreateCellMatrix(1, (mwSize)n);
+        for(a = plv_xml_attr_first(node), i = 0; a; a = plv_xml_attr_next(a), i++)
+            mxSetCell(*names_out, (mwIndex)i, plv_ret_str(plv_xml_attr_name(a)));
+    }
+    else *names_out = mxCreateCellMatrix(0, 0);
+
+    if(names != stack_names) {
+        mxFree(names);
+        mxFree((void *)ptrs);
+    }
+    return s;
+}
+
+static mxArray * plv_xml_text_of(plv_xml_node_t node)
+{
+    const char * single;
+    char stack[1024];
+    char * buf;
+    size_t n = plv_xml_text(node, &single, NULL, 0);
+    mxArray * out;
+
+    if(single) return plv_ret_utf8n(single, n);
+    buf = (n < sizeof(stack)) ? stack : (char *)mxMalloc(n + 1);
+    plv_xml_text(node, &single, buf, n + 1);
+    out = plv_ret_utf8n(buf, n);
+    if(buf != stack) mxFree(buf);
+    return out;
+}
+
+/* The struct array for first and its element siblings, allocated once at its
+ * final size. NULL means the document nests too deep. */
+static mxArray * plv_xml_nodes(plv_xml_node_t first, size_t count, int depth)
+{
+    mxArray * arr;
+    plv_xml_node_t node;
+    size_t i;
+
+    if(depth > PLV_XML_MAX_DEPTH) return NULL;
+    arr = mxCreateStructMatrix(count ? 1 : 0, count ? (mwSize)count : 0, 5, s_xml_fields);
+    for(node = first, i = 0; node && i < count; node = plv_xml_next(node), i++) {
+        mxArray * names;
+        mxArray * attrs = plv_xml_attributes(node, &names);
+        plv_xml_node_t child = plv_xml_first(node);
+        mxArray * kids = plv_xml_nodes(child, plv_xml_count(child), depth + 1);
+        if(!kids) return NULL;
+        mxSetFieldByNumber(arr, (mwIndex)i, 0, plv_ret_str(plv_xml_name(node)));
+        mxSetFieldByNumber(arr, (mwIndex)i, 1, attrs);
+        mxSetFieldByNumber(arr, (mwIndex)i, 2, names);
+        mxSetFieldByNumber(arr, (mwIndex)i, 3, plv_xml_text_of(node));
+        mxSetFieldByNumber(arr, (mwIndex)i, 4, kids);
+    }
+    return arr;
+}
+
+static void op_ParseXML(int nlhs, mxArray * plhs[], int nrhs, const mxArray * prhs[])
+{
+    char msg[PLV_ERR_MSG_MAX];
+    char * text;
+    plv_xml_doc_t * doc;
+    plv_xml_node_t root;
+    mxArray * tree;
+
+    (void)nlhs;
+    if(s_xml_pending) {
+        plv_xml_free(s_xml_pending);
+        s_xml_pending = NULL;
+    }
+    if(nrhs != 2)
+        mexErrMsgIdAndTxt("psychlvgl:Usage", "Usage: tree = PsychLVGL('ParseXML', pathOrText)");
+    if(!mxIsChar(prhs[1]) || mxGetNumberOfDimensions(prhs[1]) > 2 || mxGetM(prhs[1]) > 1)
+        mexErrMsgIdAndTxt("psychlvgl:Type",
+                          "argument 1 must be a char row vector, a file name or XML text");
+#if defined(PSYCHLVGL_OCTAVE)
+    text = mxArrayToString(prhs[1]);
+#else
+    text = mxArrayToUTF8String(prhs[1]);
+#endif
+    if(!text)
+        mexErrMsgIdAndTxt("psychlvgl:Type", "argument 1 could not be converted to UTF-8");
+
+    /* No file name contains '<' on Windows, and every XML document does, so
+     * the test never has to touch the file system for text. */
+    if(!strchr(text, '<')) {
+        int status;
+        doc = plv_xml_parse_file(text, &status, msg, sizeof(msg));
+        if(!doc && status == PLV_XML_NOT_FOUND) {
+            char shown[256];
+            snprintf(shown, sizeof(shown), "%s", text);
+            mxFree(text);
+            mexErrMsgIdAndTxt("psychlvgl:XML",
+                              "'%s' is neither a readable file nor XML text", shown);
+        }
+    }
+    else doc = plv_xml_parse_text(text, strlen(text), msg, sizeof(msg));
+    mxFree(text);
+    if(!doc) mexErrMsgIdAndTxt("psychlvgl:XML", "%s", msg);
+
+    s_xml_pending = doc;
+    root = plv_xml_root_first(doc);
+    tree = plv_xml_nodes(root, plv_xml_count(root), 0);
+    s_xml_pending = NULL;
+    plv_xml_free(doc);
+    if(!tree)
+        mexErrMsgIdAndTxt("psychlvgl:XML", "the document nests deeper than %d elements",
+                          PLV_XML_MAX_DEPTH);
+    plhs[0] = tree;
 }
 
 /* --------------------------------------------------------------- mexFunction */

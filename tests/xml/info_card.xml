@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A component that extends another component: its view is a my_button with
+     some props fixed and one passed through from its own API. -->
+<component>
+	<api>
+		<prop name="title" type="string" default="Card"/>
+	</api>
+
+	<view extends="my_button" label="$title" btn_w="180"/>
+</component>

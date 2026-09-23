@@ -18,12 +18,54 @@ functions = [
   "lv_obj_get_child_count", "lv_obj_get_child", "lv_obj_get_parent",
   "lv_obj_invalidate", "lv_obj_scroll_to_view",
   "lv_obj_set_flex_flow", "lv_obj_set_flex_align", "lv_obj_set_layout",
+  # Phase 3: attributes of the LVGL XML format, and name lookup (SPEC D52).
+  "lv_obj_set_scrollbar_mode",
+  "lv_obj_set_scroll_snap_x",
+  "lv_obj_set_scroll_snap_y",
+  "lv_obj_set_scroll_dir",
+  "lv_obj_set_ext_click_area",
+  "lv_obj_set_flex_grow",
+  "lv_obj_set_name",
+  "lv_obj_find_by_name",
+  # One setter per object flag. LVGL 9.6 deprecates lv_obj_add_flag and
+  # lv_obj_remove_flag and logs a warning on every call, so the XML flag
+  # attributes use these (SPEC D52).
+  "lv_obj_set_hidden",
+  "lv_obj_set_clickable",
+  "lv_obj_set_click_focusable",
+  "lv_obj_set_checkable",
+  "lv_obj_set_scrollable",
+  "lv_obj_set_scroll_elastic",
+  "lv_obj_set_scroll_momentum",
+  "lv_obj_set_scroll_one",
+  "lv_obj_set_scroll_chain",
+  "lv_obj_set_scroll_chain_hor",
+  "lv_obj_set_scroll_chain_ver",
+  "lv_obj_set_scroll_on_focus",
+  "lv_obj_set_scroll_with_arrow",
+  "lv_obj_set_snappable",
+  "lv_obj_set_press_lock",
+  "lv_obj_set_event_bubble",
+  "lv_obj_set_gesture_bubble",
+  "lv_obj_set_adv_hittest",
+  "lv_obj_set_ignore_layout",
+  "lv_obj_set_floating",
+  "lv_obj_set_send_draw_task_events",
+  "lv_obj_set_overflow_visible",
+  "lv_obj_set_event_trickle",
+  "lv_obj_set_state_trickle",
+  "lv_obj_set_radio_button",
+  "lv_obj_set_flex_in_new_track",
 ]
 
 [widgets.label]
 functions = [
   "lv_label_create", "lv_label_set_text", "lv_label_set_long_mode",
   "lv_label_get_text",
+  # Phase 3 (SPEC D52).
+  "lv_label_set_recolor",
+  "lv_label_set_text_selection_start",
+  "lv_label_set_text_selection_end",
 ]
 
 [widgets.button]
@@ -40,7 +82,11 @@ functions = [
 ]
 
 [widgets.switch]
-functions = ["lv_switch_create"]
+functions = [
+  "lv_switch_create",
+  # Phase 3 (SPEC D52).
+  "lv_switch_set_orientation",
+]
 
 [widgets.checkbox]
 functions = ["lv_checkbox_create", "lv_checkbox_set_text", "lv_checkbox_get_text"]
@@ -49,6 +95,8 @@ functions = ["lv_checkbox_create", "lv_checkbox_set_text", "lv_checkbox_get_text
 functions = [
   "lv_bar_create", "lv_bar_set_value", "lv_bar_set_range",
   "lv_bar_set_start_value", "lv_bar_get_value", "lv_bar_set_mode",
+  # Phase 3 (SPEC D52).
+  "lv_bar_set_orientation",
 ]
 
 [widgets.arc]
@@ -56,6 +104,12 @@ functions = [
   "lv_arc_create", "lv_arc_set_value", "lv_arc_set_range",
   "lv_arc_set_bg_angles", "lv_arc_set_angles", "lv_arc_set_rotation",
   "lv_arc_set_mode", "lv_arc_get_value",
+  # Phase 3 (SPEC D52).
+  "lv_arc_set_start_angle",
+  "lv_arc_set_end_angle",
+  "lv_arc_set_bg_start_angle",
+  "lv_arc_set_bg_end_angle",
+  "lv_arc_set_change_rate",
 ]
 
 [widgets.dropdown]
@@ -82,6 +136,8 @@ functions = [
   "lv_textarea_set_password_mode", "lv_textarea_set_max_length",
   "lv_textarea_set_accepted_chars", "lv_textarea_set_cursor_pos",
   "lv_textarea_get_cursor_pos",
+  # Phase 3 (SPEC D52).
+  "lv_textarea_set_password_show_time",
 ]
 
 [widgets.spinbox]
@@ -89,6 +145,10 @@ functions = [
   "lv_spinbox_create", "lv_spinbox_set_value", "lv_spinbox_set_range",
   "lv_spinbox_set_digit_format", "lv_spinbox_set_step",
   "lv_spinbox_increment", "lv_spinbox_decrement", "lv_spinbox_get_value",
+  # Phase 3 (SPEC D52).
+  "lv_spinbox_set_rollover",
+  "lv_spinbox_set_digit_count",
+  "lv_spinbox_set_dec_point_pos",
 ]
 
 [widgets.table]
@@ -96,6 +156,8 @@ functions = [
   "lv_table_create", "lv_table_set_cell_value", "lv_table_set_row_count",
   "lv_table_set_column_count", "lv_table_set_column_width",
   "lv_table_get_selected_cell", "lv_table_get_cell_value",
+  # Phase 3 (SPEC D52).
+  "lv_table_set_cell_ctrl",
 ]
 
 # Phase 2. lv_chart_set_range from SPEC 5.3 is lv_chart_set_axis_range in 9.6.
@@ -117,6 +179,9 @@ functions = [
   "lv_chart_get_pressed_point",
   "lv_chart_add_cursor", "lv_chart_remove_cursor",
   "lv_chart_set_cursor_pos_x", "lv_chart_set_cursor_pos_y", "lv_chart_set_cursor_point",
+  # Phase 3 (SPEC D52).
+  "lv_chart_set_hor_div_line_count",
+  "lv_chart_set_ver_div_line_count",
 ]
 
 # lv_image_set_src takes an ImageFromTexture or ImageFromArray handle, or 0.
@@ -129,4 +194,7 @@ functions = [
   "lv_image_set_antialias", "lv_image_set_inner_align",
   "lv_image_get_src_width", "lv_image_get_src_height",
   "lv_image_get_rotation", "lv_image_get_scale",
+  # Phase 3 (SPEC D52).
+  "lv_image_set_pivot_x",
+  "lv_image_set_pivot_y",
 ]

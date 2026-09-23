@@ -45,7 +45,7 @@ function run_tests(variant)
         run_group({'test_dispatch', 'test_handles', 'test_shutdown', 'test_events', 'test_keypad', ...
                    'test_tick', 'test_gen_marshal', 'test_checksum', ...
                    'test_chart', 'test_styles', 'test_fonts', 'test_images', ...
-                   'test_helpers'});
+                   'test_helpers', 'test_xml_parse', 'test_xml_load', 'test_xml_subjects'});
         % Only hand the real Screen back where there is one. On a machine with
         % no Psychtoolbox the stub can stay: nothing else looks for Screen.
         if hadScreen
@@ -60,7 +60,7 @@ function run_tests(variant)
         try
             run_group({'test_gl_init', 'test_gl_render', 'test_gl_click', ...
                        'test_gl_resize', 'test_gl_chart', 'test_gl_style', ...
-                       'test_gl_image', 'test_gl_font', 'test_gl_demo_gabor'});
+                       'test_gl_image', 'test_gl_font', 'test_gl_demo_gabor', 'test_gl_xml'});
         catch err
             ptb_test_window_close();
             rethrow(err);

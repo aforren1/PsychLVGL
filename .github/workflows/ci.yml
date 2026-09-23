@@ -18,6 +18,8 @@ name: CI
 # third_party/lvgl is a submodule pinned at v9.6.0, and third_party/PINS.md
 # holds the commit. The "Fetch LVGL" step clones that commit when the submodule
 # is not there yet, so the workflow works before and after the conversion.
+# third_party/pugixml (v1.16, the parser behind ParseXML) is handled the same
+# way by "Fetch pugixml", with the commit in PUGIXML_COMMIT.
 #
 # macOS on Apple silicon (maca64) is covered by four units: the macos-latest
 # entries of matlab-build and matlab-test-forward, octave-macos, and
@@ -34,6 +36,7 @@ on:
 
 env:
   LVGL_COMMIT: 80ca777e37a2b176770726a02e07a6fb79ef0b39
+  PUGIXML_COMMIT: c8033ce9d039e7f9d134877c363397b3cfe20816
 
 jobs:
   # =============================================================== MATLAB =====
@@ -61,6 +64,13 @@ jobs:
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
           bash tools/apply_lvgl_patches.sh
+      - name: Fetch pugixml
+        shell: bash
+        run: |
+          if [ ! -f third_party/pugixml/src/pugixml.cpp ]; then
+            git clone --no-checkout https://github.com/zeux/pugixml.git third_party/pugixml
+            git -C third_party/pugixml checkout "$PUGIXML_COMMIT"
+          fi
       - name: Install the OpenGL link library
         if: runner.os == 'Linux'
         # The GPU variant links against libGL. The runner image has the runtime
@@ -152,6 +162,13 @@ jobs:
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
           bash tools/apply_lvgl_patches.sh
+      - name: Fetch pugixml
+        shell: bash
+        run: |
+          if [ ! -f third_party/pugixml/src/pugixml.cpp ]; then
+            git clone --no-checkout https://github.com/zeux/pugixml.git third_party/pugixml
+            git -C third_party/pugixml checkout "$PUGIXML_COMMIT"
+          fi
       - name: Build and test
         run: |
           docker run --rm -i -v "$PWD:/work" -w /work "gnuoctave/octave:${{ matrix.floor }}" bash -s <<'EOF'
@@ -248,6 +265,12 @@ jobs:
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
           bash tools/apply_lvgl_patches.sh
+      - name: Fetch pugixml
+        run: |
+          if [ ! -f third_party/pugixml/src/pugixml.cpp ]; then
+            git clone --no-checkout https://github.com/zeux/pugixml.git third_party/pugixml
+            git -C third_party/pugixml checkout "$PUGIXML_COMMIT"
+          fi
       - name: Build and test
         run: |
           octave-cli --eval "build('test-sw'); addpath('tests'); run_tests('sw')"
@@ -285,6 +308,12 @@ jobs:
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
           bash tools/apply_lvgl_patches.sh
+      - name: Fetch pugixml
+        run: |
+          if [ ! -f third_party/pugixml/src/pugixml.cpp ]; then
+            git clone --no-checkout https://github.com/zeux/pugixml.git third_party/pugixml
+            git -C third_party/pugixml checkout "$PUGIXML_COMMIT"
+          fi
       - name: Install Octave and CMake
         run: |
           command -v cmake >/dev/null || brew install cmake
@@ -331,6 +360,12 @@ jobs:
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
           bash tools/apply_lvgl_patches.sh
+      - name: Fetch pugixml
+        run: |
+          if [ ! -f third_party/pugixml/src/pugixml.cpp ]; then
+            git clone --no-checkout https://github.com/zeux/pugixml.git third_party/pugixml
+            git -C third_party/pugixml checkout "$PUGIXML_COMMIT"
+          fi
       - name: Install Mesa and Xvfb
         run: |
           sudo apt-get update
@@ -369,6 +404,12 @@ jobs:
             git -C third_party/lvgl checkout "$LVGL_COMMIT"
           fi
           bash tools/apply_lvgl_patches.sh
+      - name: Fetch pugixml
+        run: |
+          if [ ! -f third_party/pugixml/src/pugixml.cpp ]; then
+            git clone --no-checkout https://github.com/zeux/pugixml.git third_party/pugixml
+            git -C third_party/pugixml checkout "$PUGIXML_COMMIT"
+          fi
       - name: Install CMake
         run: command -v cmake >/dev/null || brew install cmake
       - name: Build smoke_gl

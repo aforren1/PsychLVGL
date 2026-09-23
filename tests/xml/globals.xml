@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Project-wide declarations for the XML fixtures, as the LVGL editor keeps
+     them in globals.xml at the project root. PsychLVGLLoadXML finds this file
+     next to the file it loads. -->
+<globals>
+	<api>
+		<enumdef name="fixture_mode">
+			<enum name="plain"/>
+		</enumdef>
+	</api>
+
+	<consts>
+		<px name="card_w" value="200"/>
+		<px name="alias_w" value="#card_w"/>
+		<color name="accent" value="0x3366ff"/>
+		<string name="app_title" value="Fixture title"/>
+		<int name="chart_points" value="12"/>
+	</consts>
+
+	<styles>
+		<style name="style_card" width="#alias_w" bg_color="#accent" bg_opa="100%"
+		       radius="8" border_width="2" pad_all="6"/>
+		<style name="style_wide" width="150"/>
+		<style name="style_red" bg_color="0xff0000" bg_opa="255" radius="0" border_width="0"/>
+	</styles>
+
+	<subjects>
+		<int name="level" value="40" min_value="0" max_value="100"/>
+		<int name="flag" value="0"/>
+		<string name="status" value="idle"/>
+	</subjects>
+
+	<fonts>
+		<tiny_ttf name="font_title" src_path="../../third_party/lvgl/examples/libs/tiny_ttf/Ubuntu-Medium.ttf"
+		          size="24" as_file="false"/>
+	</fonts>
+
+	<images>
+		<file name="img_checker" src_path="images/checker.png"/>
+	</images>
+</globals>

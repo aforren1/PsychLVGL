@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Data binding: widgets bound to the subjects of globals.xml, and buttons
+     that change a subject when clicked. tests/test_xml_subjects.m drives it
+     through the event ring. -->
+<screen>
+	<view>
+		<lv_slider name="level_slider" x="20" y="20" width="200" bind_value="level"/>
+		<lv_arc name="level_arc" x="240" y="10" width="60" height="60" bind_value="level"/>
+		<lv_label name="level_label" x="20" y="60" bind_text="level" bind_text-fmt="Level %d"/>
+		<lv_checkbox name="flag_box" x="20" y="90" text="flag" bind_checked="flag"/>
+		<lv_label name="note" x="20" y="120" text="visible when flag is 1">
+			<bind_flag_if_eq subject="flag" flag="hidden" ref_value="0"/>
+		</lv_label>
+		<lv_label name="status_label" x="20" y="150" bind_text="status"/>
+		<lv_button name="inc" x="20" y="180" width="80" height="40">
+			<lv_label text="+10" align="center"/>
+			<subject_increment_event subject="level" step="10" max_value="100"/>
+		</lv_button>
+		<lv_button name="go" x="120" y="180" width="80" height="40">
+			<subject_set_string_event subject="status" value="running"/>
+		</lv_button>
+		<lv_button name="toggle" x="220" y="180" width="80" height="40">
+			<subject_toggle_event subject="flag"/>
+		</lv_button>
+		<lv_button name="danger" x="20" y="240" width="80" height="40">
+			<bind_state_if_gt subject="level" state="disabled" ref_value="80"/>
+		</lv_button>
+		<lv_obj name="themed" x="120" y="240" width="80" height="40">
+			<bind_style name="style_red" subject="flag" ref_value="1"/>
+		</lv_obj>
+	</view>
+</screen>

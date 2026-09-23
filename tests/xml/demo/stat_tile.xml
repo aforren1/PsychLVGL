@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A card with a caption and a value bound to a subject. The subject and the
+     format are props, so one component shows any subject. -->
+<component>
+	<api>
+		<prop name="caption" type="string" default="Value"/>
+		<prop name="subject" type="subject"/>
+		<prop name="fmt" type="string" default="%d"/>
+	</api>
+
+	<view width="120" height="90" scrollable="false" flex_flow="column" style_pad_row="2">
+		<style name="style_card"/>
+		<lv_label text="$caption">
+			<style name="style_muted"/>
+		</lv_label>
+		<lv_label name="value" bind_text="$subject" bind_text-fmt="$fmt">
+			<style name="style_big"/>
+		</lv_label>
+	</view>
+</component>

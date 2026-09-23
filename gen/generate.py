@@ -760,6 +760,7 @@ HAND_WRITTEN = [
     ("FontDelete", "PsychLVGL('FontDelete', font)"),
     ("ChartSetValues", "PsychLVGL('ChartSetValues', chart, series, values)"),
     ("ChartGetValues", "values = PsychLVGL('ChartGetValues', chart, series)"),
+    ("ParseXML", "tree = PsychLVGL('ParseXML', pathOrText)"),
 ]
 
 

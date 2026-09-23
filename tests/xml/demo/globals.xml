@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Declarations for the PsychLVGLXMLDemo panel: colors, the card style,
+     the subjects the demo reads each frame, and a TTF title font. -->
+<globals>
+	<consts>
+		<color name="panel_bg" value="0x16181d"/>
+		<color name="card_bg" value="0x22262e"/>
+		<color name="card_border" value="0x353b46"/>
+		<color name="accent" value="0x4f8cff"/>
+		<color name="warm" value="0xffc24a"/>
+		<color name="text_main" value="0xe8eaed"/>
+		<color name="text_muted" value="0x9aa3b2"/>
+		<px name="card_radius" value="10"/>
+	</consts>
+
+	<styles>
+		<style name="style_card" bg_color="#card_bg" bg_opa="100%" radius="#card_radius"
+		       border_color="#card_border" border_width="1" pad_all="10" text_color="#text_main"/>
+		<style name="style_muted" text_color="#text_muted"/>
+		<style name="style_accent" bg_color="#accent"/>
+		<style name="style_big" text_font="font_title" text_color="#text_main"/>
+	</styles>
+
+	<subjects>
+		<int name="contrast" value="60" min_value="0" max_value="100"/>
+		<int name="freq" value="1" min_value="0" max_value="2"/>
+		<int name="drift" value="1"/>
+	</subjects>
+
+	<fonts>
+		<tiny_ttf name="font_title" src_path="../../../third_party/lvgl/examples/libs/tiny_ttf/Ubuntu-Medium.ttf"
+		          size="22"/>
+	</fonts>
+</globals>

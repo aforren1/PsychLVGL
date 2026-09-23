@@ -539,5 +539,74 @@ mxArray * plv_ret_obj(lv_obj_t * obj)
 
 mxArray * plv_ret_str(const char * s)
 {
-    return mxCreateString(s ? s : "");
+    return plv_ret_utf8n(s ? s : "", s ? strlen(s) : 0);
+}
+
+#if !defined(PSYCHLVGL_OCTAVE)
+/* One code point from UTF-8 at s[*i], advancing *i. A malformed or truncated
+ * sequence yields U+FFFD and consumes one byte, so decoding never stops. */
+static uint32_t plv_utf8_next(const unsigned char * s, size_t n, size_t * i)
+{
+    unsigned char c = s[*i];
+    uint32_t cp;
+    size_t need, k;
+
+    if(c < 0x80) { (*i)++; return c; }
+    if((c & 0xE0) == 0xC0)      { cp = c & 0x1Fu; need = 1; }
+    else if((c & 0xF0) == 0xE0) { cp = c & 0x0Fu; need = 2; }
+    else if((c & 0xF8) == 0xF0) { cp = c & 0x07u; need = 3; }
+    else { (*i)++; return 0xFFFDu; }
+    if(*i + need >= n) { (*i)++; return 0xFFFDu; }
+    for(k = 1; k <= need; k++) {
+        if((s[*i + k] & 0xC0) != 0x80) { (*i)++; return 0xFFFDu; }
+        cp = (cp << 6) | (s[*i + k] & 0x3Fu);
+    }
+    /* Overlong forms and surrogate code points are not valid UTF-8. */
+    if((need == 1 && cp < 0x80) || (need == 2 && cp < 0x800) || (need == 3 && cp < 0x10000)
+       || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
+        (*i)++;
+        return 0xFFFDu;
+    }
+    *i += need + 1;
+    return cp;
+}
+#endif
+
+mxArray * plv_ret_utf8n(const char * s, size_t n)
+{
+    mwSize dims[2];
+    mxArray * out;
+
+    /* '' rather than a 1x0 char, as mxCreateString gives. */
+    if(n == 0) return mxCreateString("");
+    dims[0] = 1;
+#if defined(PSYCHLVGL_OCTAVE)
+    /* Octave char is UTF-8 bytes. */
+    dims[1] = (mwSize)n;
+    out = mxCreateCharArray(2, dims);
+    memcpy(mxGetChars(out), s, n);
+#else
+    {
+        /* MATLAB char is UTF-16, and mxCreateString would read the bytes in
+         * the user's code page. Count first, so the array is made once. */
+        const unsigned char * u = (const unsigned char *)s;
+        size_t i = 0, units = 0;
+        mxChar * d;
+        while(i < n) units += (plv_utf8_next(u, n, &i) > 0xFFFFu) ? 2 : 1;
+        dims[1] = (mwSize)units;
+        out = mxCreateCharArray(2, dims);
+        d = mxGetChars(out);
+        i = 0;
+        while(i < n) {
+            uint32_t cp = plv_utf8_next(u, n, &i);
+            if(cp > 0xFFFFu) {
+                cp -= 0x10000u;
+                *d++ = (mxChar)(0xD800u + (cp >> 10));
+                *d++ = (mxChar)(0xDC00u + (cp & 0x3FFu));
+            }
+            else *d++ = (mxChar)cp;
+        }
+    }
+#endif
+    return out;
 }

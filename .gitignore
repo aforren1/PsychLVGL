@@ -27,11 +27,6 @@ gen/out/
 __pycache__/
 *.pyc
 
-# LVGL Pro C exports dropped into plugin/ are user content. Only the
-# hand-written table and README in plugin/ are tracked.
-plugin/*_gen.c
-plugin/*_gen.h
-
 # MATLAB and Octave scratch files and logs from -batch runs
 *.asv
 *.m~

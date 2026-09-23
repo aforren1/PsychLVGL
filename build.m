@@ -92,7 +92,7 @@ function build_variant(here, sw)
            'build:lvgl', ['third_party/lvgl is missing. Clone LVGL v9.6.0 into it, ' ...
                           'see README.md.']);
 
-    cc = engine_compiler(is_octave);
+    [cc, cxx] = engine_compiler(is_octave);
     [gen, genextra] = cmake_generator(is_octave);
 
     cfg = sprintf(['cmake -E chdir "%s" cmake -DCMAKE_BUILD_TYPE=Release ' ...
@@ -101,6 +101,9 @@ function build_variant(here, sw)
                   builddir, fullfile(here, instdir), upper(logical_str(sw)));
     if ~isempty(cc)
         cfg = [cfg sprintf(' -DCMAKE_C_COMPILER="%s"', strrep(cc, '\', '/'))];
+    end
+    if ~isempty(cxx)
+        cfg = [cfg sprintf(' -DCMAKE_CXX_COMPILER="%s"', strrep(cxx, '\', '/'))];
     end
     if ~isempty(gen)
         cfg = [cfg sprintf(' -G "%s"', gen)];
@@ -160,6 +163,14 @@ function build_variant(here, sw)
         args{end+1} = '-DPSYCHLVGL_TEST_SW=1';
     end
     args = [args, libs(:)'];
+    % pugixml in the core library is C++. Built without exceptions, RTTI and
+    % the STL it still needs sized operator delete from the C++ runtime, which
+    % a C link does not pull in; MSVC links its runtime by default.
+    if ismac
+        args{end+1} = '-lc++';
+    elseif is_octave || ~ispc
+        args{end+1} = '-lstdc++';
+    end
     if ~sw
         if ispc
             args{end+1} = '-lopengl32';
@@ -199,14 +210,22 @@ function s = logical_str(tf)
     if tf; s = 'on'; else; s = 'off'; end
 end
 
-function cc = engine_compiler(is_octave)
-% The static library and the MEX must come from the same toolchain.
+function [cc, cxx] = engine_compiler(is_octave)
+% The static library and the MEX must come from the same toolchain. The C++
+% compiler only builds pugixml, but it decides which C++ runtime the MEX links.
     cc = '';
+    cxx = '';
     try
         if is_octave
             [status, out] = system('mkoctfile -p CC');
             if status == 0
                 cc = strtrim(out);
+            end
+            % Homebrew answers "clang++ -std=gnu++17". CMake wants the program
+            % alone, and pugixml needs no language level flag.
+            [status, out] = system('mkoctfile -p CXX');
+            if status == 0
+                cxx = strtok(strtrim(out));
             end
         else
             cfg = mex.getCompilerConfigurations('C', 'Selected');
@@ -220,6 +239,10 @@ function cc = engine_compiler(is_octave)
     if ispc && is_octave && isempty(cc)
         cand = fullfile(octave_root(), 'mingw64', 'bin', 'gcc.exe');
         if exist(cand, 'file'); cc = cand; end
+    end
+    if ispc && is_octave && isempty(cxx)
+        cand = fullfile(octave_root(), 'mingw64', 'bin', 'g++.exe');
+        if exist(cand, 'file'); cxx = cand; end
     end
 end
 

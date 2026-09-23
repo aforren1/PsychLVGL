@@ -11,7 +11,9 @@ if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version, as mex uses")
 endif()
 
-project(psychlvgl C)
+# C++ only for pugixml and its wrapper (ParseXML) and, when enabled, Tracy.
+# Both are compiled into the core static library, so the MEX stays C.
+project(psychlvgl C CXX)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -136,6 +138,32 @@ else()
     list(APPEND PLV_CORE_SOURCES src/core/plv_display.c src/core/plv_gl_loader.c)
 endif()
 
+# --- pugixml, the parser behind ParseXML --------------------------------------
+# Octave has no XML reader, so parsing happens in C++. XPath is not needed,
+# and without exceptions and the STL the library needs nothing from the C++
+# runtime beyond sized operator delete, which build.m links for the MEX
+# (SPEC deviation D51). The checkout is a plain clone until it becomes a
+# submodule; third_party/PINS.md has the commit.
+set(PSYCHLVGL_PUGIXML_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pugixml" CACHE PATH
+    "pugixml checkout used by ParseXML")
+if(NOT EXISTS ${PSYCHLVGL_PUGIXML_DIR}/src/pugixml.cpp)
+    message(FATAL_ERROR
+        "pugixml is missing: ${PSYCHLVGL_PUGIXML_DIR}/src/pugixml.cpp does not exist. "
+        "Clone it with\n"
+        "  git clone --branch v1.16 https://github.com/zeux/pugixml.git third_party/pugixml\n"
+        "or pass -DPSYCHLVGL_PUGIXML_DIR=<a pugixml checkout>. See third_party/PINS.md.")
+endif()
+list(APPEND PLV_CORE_SOURCES ${PSYCHLVGL_PUGIXML_DIR}/src/pugixml.cpp src/core/plv_xml.cpp)
+set(_plv_pugixml_defs PUGIXML_NO_XPATH PUGIXML_NO_EXCEPTIONS PUGIXML_NO_STL)
+set_source_files_properties(${PSYCHLVGL_PUGIXML_DIR}/src/pugixml.cpp src/core/plv_xml.cpp
+    PROPERTIES COMPILE_DEFINITIONS "${_plv_pugixml_defs}")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    # No RTTI: otherwise every class with a virtual function references the
+    # C++ runtime's type_info vtables, which a C link does not pull in.
+    set_source_files_properties(${PSYCHLVGL_PUGIXML_DIR}/src/pugixml.cpp src/core/plv_xml.cpp
+        PROPERTIES COMPILE_OPTIONS "-fno-exceptions;-fno-rtti")
+endif()
+
 add_library(plv_core STATIC ${PLV_CORE_SOURCES})
 target_include_directories(plv_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -143,6 +171,7 @@ target_include_directories(plv_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lvgl
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lvgl/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lvgl/src/drivers/opengles/glad/include)
+target_include_directories(plv_core PRIVATE ${PSYCHLVGL_PUGIXML_DIR}/src)
 target_link_libraries(plv_core PUBLIC lvgl)
 
 if(PSYCHLVGL_TEST_SW)
@@ -156,9 +185,9 @@ if(APPLE)
 endif()
 if(PSYCHLVGL_TRACY)
     # Tracy is C++. Compiling its client into this library keeps the MEX plain
-    # C. plv_tracy.cpp is the one piece of the GPU zone that needs C++.
+    # C. plv_tracy.cpp is the one piece of the GPU zone that needs C++. CXX is
+    # enabled by project() for pugixml.
     if(EXISTS ${PSYCHLVGL_TRACY_DIR}/public/TracyClient.cpp)
-        enable_language(CXX)
         target_sources(plv_core PRIVATE ${PSYCHLVGL_TRACY_DIR}/public/TracyClient.cpp
                                         src/core/plv_tracy.cpp)
         target_include_directories(plv_core PUBLIC ${PSYCHLVGL_TRACY_DIR}/public)

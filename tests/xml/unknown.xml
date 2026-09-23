@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Deliberate mistakes. Each distinct one must produce exactly one warning,
+     however often it occurs; tests/test_xml_load.m counts them. -->
+<screen>
+	<frobnicate/>
+	<view>
+		<lv_label name="u1" text="a" wobble="1"/>
+		<lv_label name="u2" text="b" wobble="2"/>
+		<lv_frobnicator name="f1"/>
+		<lv_frobnicator name="f2"/>
+		<lv_label name="u3" text="#no_such_const" style_no_such_prop="3"/>
+		<lv_label name="u4" text="c" style_no_such_prop="4"/>
+		<lv_label name="u5" text="d" align="middle"/>
+		<lv_obj name="u6" bind_checked="no_such_subject">
+			<style name="no_such_style"/>
+		</lv_obj>
+	</view>
+</screen>

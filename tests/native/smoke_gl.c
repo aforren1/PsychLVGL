@@ -25,6 +25,7 @@
 #include "glad/gl.h"
 #include "plv_core.h"
 #include "plv_gl_loader.h"
+#include "plv_xml.h"
 
 static int failures;
 
@@ -552,6 +553,40 @@ static void phase2_scene(int W, int H, double * t)
     check("glGetError is clean after the phase 2 teardown", glGetError() == GL_NO_ERROR);
 }
 
+/* ParseXML's parser through its C interface. Not GL, but this is the one
+ * test that links the core library with the platform's own C++ toolchain
+ * and runs it, so a pugixml build or runtime link problem shows up here on
+ * Linux and macOS too. */
+static void xml_check(void)
+{
+    static const char text[] =
+        "<screen><view w=\"1\"><lv_label name=\"a\"> hi <![CDATA[ there ]]> </lv_label>"
+        "<!-- c --><lv_slider/></view></screen>";
+    char msg[256];
+    plv_xml_doc_t * doc = plv_xml_parse_text(text, sizeof(text) - 1, msg, sizeof(msg));
+    plv_xml_node_t root, view, label;
+    const char * single = NULL;
+    size_t n;
+
+    check("pugixml parses a document", doc != NULL);
+    if(!doc) return;
+    root = plv_xml_root_first(doc);
+    view = plv_xml_first(root);
+    label = plv_xml_first(view);
+    check("the tree has screen, view and two element children",
+          strcmp(plv_xml_name(root), "screen") == 0 && strcmp(plv_xml_name(view), "view") == 0
+          && plv_xml_count(label) == 2);
+    check("attributes read back", plv_xml_attr_count(label) == 1
+          && strcmp(plv_xml_attr_value(plv_xml_attr_first(label)), "a") == 0);
+    n = plv_xml_text(label, &single, msg, sizeof(msg));
+    check("text and CDATA are trimmed and joined", single == NULL && n == 8
+          && strcmp(msg, "hi there") == 0);
+    plv_xml_free(doc);
+
+    doc = plv_xml_parse_text("<a><b></a>", 10, msg, sizeof(msg));
+    check("a parse error is reported with its offset", doc == NULL && strstr(msg, "offset") != NULL);
+}
+
 int main(void)
 {
     plv_init_opts_t opts;
@@ -577,6 +612,7 @@ int main(void)
 
     plv_set_print_fn(print_line);
 
+    xml_check();
     check("a GL context is current", plv_gl_has_context());
     check("gladLoadGL resolved the entry points", plv_gl_load());
     printf("GL_VERSION  %s\n", (const char *)glGetString(GL_VERSION));

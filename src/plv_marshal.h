@@ -89,6 +89,8 @@ void         plv_res_release_arg(const mxArray * a);
 mxArray *    plv_ret_obj(lv_obj_t * obj);
 mxArray *    plv_ret_res(void * ptr, plv_res_kind_t kind, void * owner);
 mxArray *    plv_ret_str(const char * s);
+/* n bytes of UTF-8, not necessarily terminated. */
+mxArray *    plv_ret_utf8n(const char * s, size_t n);
 mxArray *    plv_ret_color(lv_color_t c);
 
 void         plv_check_deferred(void);

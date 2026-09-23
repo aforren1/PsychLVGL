@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The control panel of PsychLVGLXMLDemo. The slider, the arc, the tile and
+     the buttons all work on the subject "contrast"; the demo reads it each
+     frame through PsychLVGLSubjects and draws the Gabor with it. -->
+<screen>
+	<view style_bg_color="#panel_bg" style_bg_opa="100%" style_pad_all="12"
+	      flex_flow="column" style_pad_row="10" scrollable="false">
+
+		<lv_label name="title" text="Gabor controls">
+			<style name="style_big"/>
+		</lv_label>
+
+		<lv_obj name="controls" width="100%" height="content" flex_flow="column"
+		        style_pad_row="6" scrollable="false">
+			<style name="style_card"/>
+			<lv_label text="Contrast">
+				<style name="style_muted"/>
+			</lv_label>
+			<lv_slider name="contrast_slider" width="100%" bind_value="contrast"
+			           style_bg_color-indicator="#accent" style_bg_color-knob="0xffffff"/>
+			<lv_label text="Spatial frequency">
+				<style name="style_muted"/>
+			</lv_label>
+			<lv_dropdown name="freq_dd" width="100%" bind_value="freq"
+			             options="2 cyc/deg&#10;4 cyc/deg&#10;8 cyc/deg"/>
+			<lv_obj width="100%" height="content" flex_flow="row" style_pad_all="0"
+			        style_bg_opa="0" style_border_width="0" scrollable="false"
+			        style_flex_cross_place="center" style_pad_column="10">
+				<lv_switch name="drift_switch" bind_checked="drift" style_bg_color-indicator-checked="#accent"/>
+				<lv_label text="Drift" style_text_color="#text_main"/>
+			</lv_obj>
+		</lv_obj>
+
+		<lv_obj name="stats" width="100%" height="content" flex_flow="row" style_pad_all="0"
+		        style_bg_opa="0" style_border_width="0" style_pad_column="10" scrollable="false">
+			<stat_tile name="tile" caption="Contrast" subject="contrast" fmt="%d %%"/>
+			<lv_arc name="contrast_arc" width="90" height="90" bind_value="contrast"
+			        style_arc_color-indicator="#warm" style_arc_width-indicator="10" style_arc_width="10"/>
+			<lv_obj name="stim_frame" width="90" height="90" style_pad_all="4" scrollable="false">
+				<style name="style_card"/>
+				<lv_image name="stim_image" align="center"/>
+			</lv_obj>
+		</lv_obj>
+
+		<lv_chart name="history" width="100%" height="120" type="line" point_count="60"
+		          hor_div_line_count="3" ver_div_line_count="5">
+			<style name="style_card"/>
+			<lv_chart-series name="history_series" color="#warm" axis="primary_y"/>
+			<lv_chart-axis axis="primary_y" min_value="0" max_value="100"/>
+		</lv_chart>
+
+		<lv_obj width="100%" height="content" flex_flow="row" style_pad_all="0" style_bg_opa="0"
+		        style_border_width="0" style_pad_column="10" scrollable="false">
+			<lv_button name="lower" width="80">
+				<lv_label text="-10" align="center"/>
+				<subject_increment_event subject="contrast" step="-10"/>
+			</lv_button>
+			<lv_button name="reset" width="100">
+				<style name="style_accent"/>
+				<lv_label text="Reset" align="center"/>
+				<subject_set_int_event subject="contrast" value="60"/>
+			</lv_button>
+			<lv_button name="raise" width="80">
+				<lv_label text="+10" align="center"/>
+				<subject_increment_event subject="contrast" step="10"/>
+			</lv_button>
+		</lv_obj>
+
+		<lv_obj name="block" width="100%" height="content" flex_flow="column" style_pad_row="6"
+		        scrollable="false">
+			<style name="style_card"/>
+			<lv_label text="Block progress">
+				<style name="style_muted"/>
+			</lv_label>
+			<lv_bar name="progress" width="100%" height="8" max_value="100" value="0"
+			        style_bg_color-indicator="#accent" style_bg_color="#card_border"/>
+			<lv_table name="trials" width="100%" row_count="3" column_count="3"
+			          style_bg_opa="0" style_border_width="0" style_pad_all="0"
+			          style_bg_color-items="#card_bg" style_text_color-items="#text_main"
+			          style_border_color-items="#card_border" style_pad_ver-items="4">
+				<lv_table-column column="0" width="110"/>
+				<lv_table-column column="1" width="130"/>
+				<lv_table-column column="2" width="130"/>
+				<lv_table-cell row="0" column="0" value="Trial"/>
+				<lv_table-cell row="0" column="1" value="Contrast"/>
+				<lv_table-cell row="0" column="2" value="Frequency"/>
+			</lv_table>
+		</lv_obj>
+
+		<lv_label name="status" text="ready">
+			<style name="style_muted"/>
+		</lv_label>
+	</view>
+</screen>

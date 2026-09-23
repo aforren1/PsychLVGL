@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A component with props: <my_button label="OK" tint="0x00aa00"/>. The tag
+     is the file name. tint has no default, so an instance without it keeps
+     the theme color. -->
+<component>
+	<consts>
+		<px name="btn_h" value="40"/>
+	</consts>
+
+	<api>
+		<prop name="label" type="string" default="Press"/>
+		<prop name="btn_w" type="int" default="120"/>
+		<prop name="tint" type="color"/>
+	</api>
+
+	<styles>
+		<style name="style_btn" radius="4"/>
+	</styles>
+
+	<view extends="lv_button" width="$btn_w" height="#btn_h" style_bg_color="$tint">
+		<style name="style_btn"/>
+		<lv_label name="caption" text="$label" align="center"/>
+	</view>
+</component>

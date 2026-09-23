@@ -129,11 +129,11 @@ for experiments.
 
 The two macOS zips are built on `macos-latest`, which is Apple silicon, so
 they carry `maca64` only. Intel Macs are not covered: no runner builds
-`maci64`, and nothing on that architecture has been tested. Both macOS jobs
-are `continue-on-error: true` while macOS is new, so a release can go out
-without those two zips. Check `gh run view` before you announce a macOS
-build, and read the note on the GL 2.1 limit in `README.md` under "Known
-limits" before you promise that the GPU path works there.
+`maci64`, and nothing on that architecture has been tested. The macOS jobs
+block the release like every other job. The GPU path on macOS depends on the
+vendored LVGL patch (`README.md`, "Vendored LVGL patch"); CI runs it on
+Apple's software renderer, and no accelerated Mac has run it yet, so say so
+when you announce a macOS build.
 
 ## If the release job fails
 

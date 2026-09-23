@@ -21,9 +21,9 @@ name: CI
 #
 # macOS on Apple silicon (maca64) is covered by four units: the macos-latest
 # entries of matlab-build and matlab-test-forward, octave-macos, and
-# smoke-gl-macos. Nobody on the team has a Mac, so continue-on-error keeps them
-# advisory. Make them blocking, by deleting that setting from each, after the
-# first run where all four are green.
+# smoke-gl-macos. They were advisory (continue-on-error) until the first run
+# where all four were green, on 2026-09-23 with the vendored LVGL GL 2.1 patch
+# (SPEC D38); since then they block like every other job.
 
 on:
   push:
@@ -40,8 +40,6 @@ jobs:
   matlab-build:
     name: build · ${{ matrix.os }} · MATLAB ${{ matrix.release }}
     runs-on: ${{ matrix.os }}
-    # Only the macOS entry sets experimental, so the other two stay blocking.
-    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -108,14 +106,13 @@ jobs:
     name: test · ${{ matrix.os }} · MATLAB ${{ matrix.release }}
     needs: matlab-build
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - { os: ubuntu-latest,  release: latest, asset: psychlvgl-matlab-linux }
           - { os: windows-latest, release: latest, asset: psychlvgl-matlab-windows }
-          - { os: macos-latest,   release: latest, asset: psychlvgl-matlab-macos, experimental: true }
+          - { os: macos-latest,   release: latest, asset: psychlvgl-matlab-macos }
     steps:
       - uses: actions/checkout@v7      # tests and help shims only, no rebuild
       - uses: matlab-actions/setup-matlab@v3
@@ -358,7 +355,6 @@ jobs:
   smoke-gl-macos:
     name: smoke · macOS · CGL 2.1
     runs-on: macos-latest
-    continue-on-error: true    # advisory until the first green macOS run
     defaults:
       run:
         shell: bash
@@ -385,9 +381,7 @@ jobs:
   # ============================================================== Release =====
   release:
     name: Publish release
-    # The macOS jobs are continue-on-error, so a red one still lets the release
-    # run; its zip is then simply missing from the release. Every other job must
-    # be green.
+    # Every job, the macOS ones included, must be green for the release to run.
     needs: [matlab-build, matlab-test-forward, octave-build, octave-test-forward,
             octave-windows, smoke-gl-linux, octave-macos, smoke-gl-macos]
     if: startsWith(github.ref, 'refs/tags/')

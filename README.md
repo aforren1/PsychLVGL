@@ -243,10 +243,10 @@ Jobs:
 | `release` | On a `v*` tag, zips each artifact and publishes a GitHub Release. |
 
 Four units build or test macOS: the `macos-latest` entries of `matlab-build`
-and `matlab-test-forward`, `octave-macos`, and `smoke-gl-macos`. All four carry
-`continue-on-error: true`, so they report but do not block, because no one on
-the team has a Mac to debug them on. Remove that setting from each after the
-first run where all four are green.
+and `matlab-test-forward`, `octave-macos`, and `smoke-gl-macos`. They block
+like every other job. The smoke job runs the GPU path on Apple's software
+renderer, which is a GL 2.1 context with GLSL 1.20, the same profile
+Psychtoolbox gets on a Mac.
 
 Artifacts are named `psychlvgl-<engine>-<platform>[-<era>]` and each one holds
 only its own `dist/<arch>` and `dist-sw/<arch>`, plus `m/`, `lv_conf.h`,

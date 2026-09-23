@@ -4,8 +4,9 @@ function test_fonts()
 %   be deleted.
 
     here = fileparts(mfilename('fullpath'));
-    ttf = fullfile(fileparts(here), 'third_party', 'lvgl', 'examples', 'libs', ...
-                   'tiny_ttf', 'Ubuntu-Medium.ttf');
+    % The tests carry their own copy of the font (tests/xml/fonts/NOTICE.txt):
+    % the forward-test CI jobs check out the repository without submodules.
+    ttf = fullfile(here, 'xml', 'fonts', 'Ubuntu-Medium.ttf');
     if ~exist(ttf, 'file')
         fprintf('   skipped: %s is missing\n', ttf);
         return;

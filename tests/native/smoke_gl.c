@@ -438,7 +438,7 @@ static void phase2_scene(int W, int H, double * t)
     lv_obj_set_pos(img_t, 260, 20);
 
     /* A label in a TTF font through tiny_ttf. */
-    snprintf(font_path, sizeof(font_path), "%s/third_party/lvgl/examples/libs/tiny_ttf/Ubuntu-Medium.ttf",
+    snprintf(font_path, sizeof(font_path), "%s/tests/xml/fonts/Ubuntu-Medium.ttf",
              PLV_SOURCE_DIR);
     hfont = plv_font_load(font_path, 32, &err);
     check("FontLoad read the TTF file", hfont != 0.0);

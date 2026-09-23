@@ -5,8 +5,7 @@ function test_gl_font()
     if ~plv_gl_available(); plv_gl_skip('test_gl_font'); return; end
 
     here = fileparts(mfilename('fullpath'));
-    ttf = fullfile(fileparts(fileparts(here)), 'third_party', 'lvgl', 'examples', ...
-                   'libs', 'tiny_ttf', 'Ubuntu-Medium.ttf');
+    ttf = fullfile(fileparts(here), 'xml', 'fonts', 'Ubuntu-Medium.ttf');
     if ~exist(ttf, 'file')
         fprintf('   test_gl_font skipped: %s is missing\n', ttf);
         return;

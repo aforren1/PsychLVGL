@@ -28,7 +28,7 @@
 	</subjects>
 
 	<fonts>
-		<tiny_ttf name="font_title" src_path="../../../third_party/lvgl/examples/libs/tiny_ttf/Ubuntu-Medium.ttf"
+		<tiny_ttf name="font_title" src_path="../fonts/Ubuntu-Medium.ttf"
 		          size="22"/>
 	</fonts>
 </globals>

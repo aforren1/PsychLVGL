@@ -1,14 +1,22 @@
-function [ui, E] = PsychLVGLFrame(ui)
+function [ui, E, events] = PsychLVGLFrame(ui)
 % PSYCHLVGLFRAME  Runs one LVGL frame and draws the panel.
 %
 %   [ui, E] = PsychLVGLFrame(ui)
+%   [ui, E, events] = PsychLVGLFrame(ui)
 %
 %   ui   The struct PsychLVGLOpen returned.
 %   E    The event matrix, Nx5, oldest first. PsychLVGLEvents('decode', E)
-%        turns it into a struct array.
+%        turns it into a struct array. Its time column is the time of this
+%        frame's Update, the same for every widget event of the frame.
+%   events  The raw device events of this frame, Nx6, in time order:
+%        [time device kind code pressed cooked], with the time Psychtoolbox
+%        recorded for the device event. Use it for reaction times. ui.events
+%        holds the same matrix. See help PsychLVGLInput for the columns and
+%        PsychLVGLEvents('decodeRaw', events) for a struct array.
 %
 %   One call does everything SPEC section 4.3 shows per frame: it polls the
-%   mouse, the wheel and the keyboard in panel coordinates, wraps
+%   mouse, the wheel and the keyboard in panel coordinates, on the devices
+%   that opts.KeyboardIndex and opts.MouseIndex of PsychLVGLOpen name, wraps
 %   PsychLVGL('Update') in Screen('BeginOpenGL') and Screen('EndOpenGL'),
 %   draws the panel texture into the destination rectangle, and drains the
 %   event queue.
@@ -37,7 +45,10 @@ function [ui, E] = PsychLVGLFrame(ui)
     end
 
     tNow = plv_now();
-    [mouse, wheel, keys] = PsychLVGLInput('Poll', ui.kq, ui.win, ui.dst, ui.w, ui.h);
+    % ui.kq comes back because it keeps the part of a wheel click that is
+    % not complete yet.
+    [mouse, wheel, keys, ui.kq, events] = PsychLVGLInput('Poll', ui.kq, ui.win, ui.dst, ui.w, ui.h);
+    ui.events = events;
 
     plv_wrap_update(ui.win, tNow, mouse, wheel, keys);
 

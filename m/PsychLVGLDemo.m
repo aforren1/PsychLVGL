@@ -1,8 +1,12 @@
-function PsychLVGLDemo(seconds)
+function PsychLVGLDemo(seconds, opts)
 % PSYCHLVGLDEMO  A Gabor patch driven by an LVGL control panel.
 %
-%   PsychLVGLDemo             Runs until ESCAPE.
-%   PsychLVGLDemo(seconds)    Runs for that long, which is what a test does.
+%   PsychLVGLDemo                Runs until ESCAPE.
+%   PsychLVGLDemo(seconds)       Runs for that long, which is what a test does.
+%   PsychLVGLDemo(seconds, opts) Reads the keyboards opts.KeyboardIndex and the
+%                                mice opts.MouseIndex; see
+%                                PsychLVGLInput('Devices'). [] for seconds
+%                                runs until ESCAPE.
 %
 %   The panel holds a contrast slider, a spatial frequency dropdown, a subject
 %   id text area, a chart of the contrast over the last seconds, and a status
@@ -19,6 +23,10 @@ function PsychLVGLDemo(seconds)
     if nargin < 1 || isempty(seconds)
         seconds = Inf;
     end
+    if nargin < 2
+        opts = struct();
+    end
+    inputOpts = plv_demo_input_opts(opts);
 
     % The window helper is in m/private, so the demo runs from a release
     % package and never changes the path while the MEX may be loaded (SPEC
@@ -39,7 +47,7 @@ function PsychLVGLDemo(seconds)
     [win, winRect] = psychlvgl_demo_window([0 0 900 700], 0.5);
 
     dst = [20, 20, 20 + panelW, 20 + panelH];
-    ui = PsychLVGLOpen(win, panelW, panelH, dst);
+    ui = PsychLVGLOpen(win, panelW, panelH, dst, inputOpts);
     % One cleanup, so the panel always closes before the window. Two separate
     % onCleanup objects run in an order the engine chooses.
     closer = onCleanup(@() plv_demo_close(ui, false)); %#ok<NASGU>
@@ -171,6 +179,21 @@ function PsychLVGLDemo(seconds)
         catch
             % No keyboard on this machine. The seconds argument or a closed
             % window is then the only way out.
+        end
+    end
+end
+
+function o = plv_demo_input_opts(opts)
+% Only the two device fields go on, so a typo in any other field cannot
+% change the panel that the demo shows.
+    o = struct();
+    if ~isstruct(opts)
+        error('psychlvgl:Usage', 'opts must be a struct');
+    end
+    names = {'KeyboardIndex', 'MouseIndex'};
+    for k = 1:numel(names)
+        if isfield(opts, names{k})
+            o.(names{k}) = opts.(names{k});
         end
     end
 end

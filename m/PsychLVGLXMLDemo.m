@@ -1,4 +1,4 @@
-function PsychLVGLXMLDemo(seconds, screenshot)
+function PsychLVGLXMLDemo(seconds, screenshot, opts)
 % PSYCHLVGLXMLDEMO  A Gabor patch driven by a panel loaded from XML.
 %
 %   PsychLVGLXMLDemo              Runs until ESCAPE.
@@ -6,6 +6,10 @@ function PsychLVGLXMLDemo(seconds, screenshot)
 %   PsychLVGLXMLDemo([], file)    Plays a short scripted sequence, saves the
 %                                 window as a PNG to file and returns; see
 %                                 tools/CaptureReadmeScreenshot.m.
+%   PsychLVGLXMLDemo(seconds, '', opts)
+%                                 Reads the keyboards opts.KeyboardIndex and
+%                                 the mice opts.MouseIndex; see
+%                                 PsychLVGLInput('Devices').
 %
 %   The panel is examples/xml/gabor_panel/gabor_panel.xml, a screen as the LVGL editor
 %   saves it, with the components and declarations next to it. The demo
@@ -26,6 +30,10 @@ function PsychLVGLXMLDemo(seconds, screenshot)
     if nargin < 2
         screenshot = '';
     end
+    if nargin < 3
+        opts = struct();
+    end
+    inputOpts = plv_demo_input_opts(opts);
 
     root = fileparts(fileparts(mfilename('fullpath')));
     xml = fullfile(root, 'examples', 'xml', 'gabor_panel', 'gabor_panel.xml');
@@ -43,7 +51,7 @@ function PsychLVGLXMLDemo(seconds, screenshot)
     panelW = 440;
     panelH = 680;
     dst = [20, 20, 20 + panelW, 20 + panelH];
-    ui = PsychLVGLOpen(win, panelW, panelH, dst);
+    ui = PsychLVGLOpen(win, panelW, panelH, dst, inputOpts);
     closer = onCleanup(@() plv_demo_close(ui, ~isempty(screenshot))); %#ok<NASGU>
 
     [~, named] = PsychLVGLLoadXML(xml);
@@ -157,6 +165,21 @@ function plv_save_screenshot(win, file)
     imwrite(shot, file);
     info = dir(file);
     fprintf('screenshot %s: %dx%d, %.0f KB\n', file, size(shot, 2), size(shot, 1), info.bytes / 1024);
+end
+
+function o = plv_demo_input_opts(opts)
+% Only the two device fields go on, so a typo in any other field cannot
+% change the panel that the demo shows.
+    o = struct();
+    if ~isstruct(opts)
+        error('psychlvgl:Usage', 'opts must be a struct');
+    end
+    names = {'KeyboardIndex', 'MouseIndex'};
+    for k = 1:numel(names)
+        if isfield(opts, names{k})
+            o.(names{k}) = opts.(names{k});
+        end
+    end
 end
 
 function plv_demo_close(ui, closeWindow)

@@ -209,7 +209,7 @@ glTex = PsychLVGL('Init', panelW, panelH);              % LVGL renders into this
 Screen('EndOpenGL', win);
 tex = Screen('SetOpenGLTexture', win, [], glTex, GL_TEXTURE_2D, panelW, panelH, 32);
 dst = [20 20 20 + panelW, 20 + panelH];
-kq  = PsychLVGLInput('Start', win);
+kq  = PsychLVGLInput('Start', win, struct('KeyboardIndex', [], 'MouseIndex', []));  % section 6.0
 
 % Build the UI, once (no GL calls, may run outside BeginOpenGL)
 scr = PsychLVGL('ScreenActive');
@@ -218,7 +218,7 @@ PsychLVGL('ObjSetSize', sl, 300, 20);
 PsychLVGL('ObjAlign', sl, 'CENTER', 0, 0);
 
 % Every frame
-[mouse, wheel, keys] = PsychLVGLInput('Poll', kq, win, dst, panelW, panelH);
+[mouse, wheel, keys, kq] = PsychLVGLInput('Poll', kq, win, dst, panelW, panelH);
 Screen('BeginOpenGL', win);
 dirty = PsychLVGL('Update', GetSecs, mouse, wheel, keys);   % ticks, input, lv_timer_handler, NanoVG renders into glTex
 Screen('EndOpenGL', win);
@@ -347,6 +347,11 @@ first:
 `code`, `currentTarget`, `param`, `time`. `PsychLVGLEvents('filter', E, h,
 'CLICKED')` returns the matching rows.
 
+Column 5 is the frame's update time, the same for every event of one
+`Update`. It is right for widget events, which LVGL produces inside that call,
+but it is not when the participant pressed the key or the button. The raw
+device log of section 6.5 carries the device time; use it for reaction times.
+
 Default subscriptions per object: CLICKED, VALUE_CHANGED, PRESSED, RELEASED,
 FOCUSED, DEFOCUSED, READY, CANCEL. `AddEvent` and `RemoveEvent` change the
 mask. The ring holds `QueueCapacity` records. On overflow the oldest record is
@@ -361,15 +366,15 @@ follows `Screen('OpenWindow')` and `Screen('Close')`, and
 
 | File | Purpose |
 |---|---|
-| `m/PsychLVGLOpen.m` | `ui = PsychLVGLOpen(win, w, h [, dst] [, opts])`. Checks that 3D graphics are on, wraps `Init` in a BeginOpenGL pair, wraps the GL texture with `Screen('SetOpenGLTexture')`, starts the keyboard queue, returns the struct the script keeps. |
-| `m/PsychLVGLFrame.m` | `[ui, E] = PsychLVGLFrame(ui)`. Input, BeginOpenGL, `Update`, EndOpenGL, `DrawTexture`, `Poll`. The script still owns `Screen('Flip')`. |
+| `m/PsychLVGLOpen.m` | `ui = PsychLVGLOpen(win, w, h [, dst] [, opts])`. Checks that 3D graphics are on and that `opts.KeyboardIndex` and `opts.MouseIndex` are valid (section 6.0), wraps `Init` in a BeginOpenGL pair, wraps the GL texture with `Screen('SetOpenGLTexture')`, starts the keyboard queue and the mouse queue, returns the struct the script keeps. |
+| `m/PsychLVGLFrame.m` | `[ui, E] = PsychLVGLFrame(ui)` or `[ui, E, events] = PsychLVGLFrame(ui)`. Input, BeginOpenGL, `Update`, EndOpenGL, `DrawTexture`, `Poll`. `events` is the raw device log of the frame (section 6.5), also kept in `ui.events`. The script still owns `Screen('Flip')`. |
 | `m/PsychLVGLGL.m` | `[...] = PsychLVGLGL(ui, subcommand, ...)`. Wraps any one subcommand marked GL. Calls straight through when `Screen('GetOpenGLDrawMode')` reports the userspace context is already current. |
 | `m/PsychLVGLClose.m` | `PsychLVGLClose(ui)`. Wraps `Shutdown`, closes the PTB texture, stops the keyboard queue. Safe twice, and safe after the window is closed. |
 | `m/PsychLVGLSetup.m` | Puts `dist/<arch>` and `m/` on the path for this engine and platform. `'save'` also runs `savepath`. `'remove'` shuts the MEX down if it is locked, clears it, and only then takes `dist/<arch>`, `dist-sw/<arch>` and `m/` of this package off the path; it stops without a path change when the MEX stays locked, and does nothing when the package is not on the path. An identical copy sits at the package root, so a fresh unzip can call it with nothing on the path (D63). |
 | `m/PsychLVGL.m` | Help text only. The MEX shadows it once built. Generated. |
-| `m/PsychLVGLInput.m` | `Start`, `Poll`, `Stop`. Wraps `KbQueueCreate`, `KbQueueStart`, `KbEventGet`, `GetMouse`, `GetMouseWheel`. Converts mouse to panel pixels and key events to LVGL key codes. |
+| `m/PsychLVGLInput.m` | `Start` (with `opts.KeyboardIndex`, `opts.MouseIndex`), `Poll` (returns `kq` as a fourth output and the raw device log as a fifth), `Stop`, `Devices`. Wraps `KbQueueCreate`, `KbQueueStart`, `KbEventGet`, `GetMouse`, `GetMouseWheel`, `GetKeyboardIndices`, `GetMouseIndices`. Converts mouse to panel pixels, the wheel to clicks (section 6.2) and key events to LVGL key codes. |
 | `m/PsychLVGLKeyMap.m` | PTB key event to LVGL key code, section 6.3. |
-| `m/PsychLVGLEvents.m` | `decode` and `filter`. |
+| `m/PsychLVGLEvents.m` | `decode` and `filter` for the widget events, `decodeRaw` and `filterRaw` for the raw device log. |
 | `m/PsychLVGLOp.m` | Generated struct of opcodes. |
 | `m/PsychLVGLDemo.m` | Demo: Gabor patch controlled by a slider, a dropdown, a text area. Phase 2 adds a contrast history chart and a style shared by two widgets. |
 | `m/PsychLVGLLoadXML.m` | `[root, named] = PsychLVGLLoadXML(file [, parent] [, opts])`. Phase 3. Builds the user interface of an LVGL editor `<screen>` or `<component>` file with ordinary PsychLVGL calls. `named` holds the handles by `name` attribute and the subject table in `named.subjects`. `opts`: `AssetDir`, `Consts`, `Warn`, `Globals`, `ComponentDirs`. |
@@ -416,23 +421,131 @@ loads.
 
 ## 6. Input handling
 
+### 6.0 Device selection
+
+A lab computer can have several keyboards and mice, and the Psychtoolbox
+default device is then not always the one the participant uses.
+`PsychLVGLOpen(win, w, h, dst, opts)` and `PsychLVGLInput('Start', win, opts)`
+accept two option fields. `PsychLVGL('Init')` ignores both.
+
+| Field | Value | Used by |
+|---|---|---|
+| `KeyboardIndex` | A vector of device indices as `GetKeyboardIndices` returns them. `[]` (default) is the Psychtoolbox default keyboard. | One keyboard queue per index: `KbQueueCreate`, `KbQueueStart`, `KbEventAvail`, `KbEventGet`, `KbQueueStop`, `KbQueueRelease`. |
+| `MouseIndex` | A vector of device indices as `GetMouseIndices` returns them. `[]` (default) is the Psychtoolbox default. | One wheel source per index (section 6.2). The pointer uses the first entry only (section 6.1). |
+
+A value must be `[]` or a vector of non-negative integers. An index can appear
+only once in a list and in only one of the two lists, because a second
+`KbQueueCreate` on a device replaces its first queue, and mouse buttons must
+not reach the keypad indev. Anything else raises `psychlvgl:Usage` before
+`Init` runs (`m/private/plv_input_indices.m`, which `PsychLVGLOpen` and
+`Start` both call). `Start` stores the checked vectors in `kq.KeyboardIndex`
+and `kq.MouseIndex`, and `PsychLVGLOpen` copies them to `ui.KeyboardIndex` and
+`ui.MouseIndex`. `PsychLVGLFrame` passes `ui.kq` to `Poll`, so every frame
+reads the same devices. `Stop` releases every queue that `Start` created.
+
+With several keyboards, `Poll` drains every queue, sorts the events by their
+`Time` field (a stable sort, so equal times keep queue order) and only then
+maps them to key rows, so a key typed on one keyboard cannot move ahead of an
+earlier key on another. With one keyboard no sort is done.
+
+The empty default is unchanged from the single device version: one queue on
+the Psychtoolbox default keyboard, `GetMouse(win)`, and `GetMouseWheel()`, or
+on Windows a queue on the first `GetMouseIndices` mouse.
+
+`PsychLVGLInput('Devices')` prints the keyboards and mice and returns a struct
+with `keyboards` and `mice`, each a struct array with the fields `index`
+(double), `product` (char), `usageName` (char), `xinputName` (char) and
+`xinputId` (double). On Linux, PsychHID fills `product` with the XInput device
+name and `interfaceID` with the XInput device id
+(`Linux/PsychHID/PsychHIDStandardInterfaces.c`, `PsychHIDEnumerateHIDInputDevices`),
+so `xinputName` and `xinputId` match `xinput list`. On Windows and macOS they
+are `''` and `NaN`. All values are char or double, because Octave has no
+`string` type.
+
+On Linux, choose a "slave pointer" as `MouseIndex`. `GetMouseIndices` also
+lists the master pointer, which is the one cursor that all mice move
+(`PsychHardware/GetMouseIndices.m`).
+
 ### 6.1 Mouse
 
-`PsychLVGLInput('Poll')` calls `GetMouse(win)`, subtracts the panel origin
-`dst(1:2)`, scales by `panelW / (dst(3) - dst(1))` and the same for y when the
+`PsychLVGLInput('Poll')` reads the position and the button state, subtracts
+the panel origin `dst(1:2)`, scales by `panelW / (dst(3) - dst(1))` and the same for y when the
 destination size differs from the panel size, and returns `[x y pressed]` with
 `pressed = buttons(1)`. `Update` clamps the point to the panel and writes it to
 the pointer indev with `LV_INDEV_STATE_PRESSED` or `RELEASED`. Points outside
 the panel are clamped to the edge and reported released, so a drag that leaves
 the panel ends cleanly.
 
+With `MouseIndex` empty, `Poll` calls `GetMouse(win)`. Otherwise only the first
+entry, `m = MouseIndex(1)`, drives the pointer; the other mice give the wheel
+only. How `GetMouse` reads `m` depends on the platform
+(`Common/Screen/SCREENGetMouseHelper.c`):
+
+- Windows and macOS ignore the device argument. `Poll` calls `GetMouse(win, m)`
+  once, and the position and buttons come from all mice together.
+- Linux with `m` a master pointer: `XIQueryPointer` on the window gives window
+  coordinates. One call, `GetMouse(win, m)`.
+- Linux with `m` a slave pointer: `XIQueryPointer` works on master pointers
+  only, so the helper returns the valuator values of the slave's own axes 0
+  and 1 from `XIQueryDevice`, with no window offset. `GetMouse.m` then passes
+  them on as window coordinates, which they are not. `Start` therefore finds
+  the master the slave is attached to: PsychHID reports the attachment as
+  `locationID` and the XInput id as `interfaceID`
+  (`Linux/PsychHID/PsychHIDStandardInterfaces.c`,
+  `PsychHIDEnumerateHIDInputDevices`), and the master is the `GetMouseIndices`
+  entry with `usageName` "master pointer" whose `interfaceID` equals the
+  slave's `locationID`. `Poll` reads the position with `GetMouse(win, master)`
+  and the buttons with `GetMouse(win, m)`, so another mouse on the same master
+  moves the cursor but cannot click the panel. `kq.pointerDevice` holds the
+  master and `kq.buttonDevice` holds `m`.
+- Linux with `m` a floating slave (no master): the position comes from
+  `GetMouse(win)`.
+
+`pressed` is `buttons(1)` on every path. Windows fills left, middle, right
+from `GetAsyncKeyState` (`Windows/Screen/PsychWindowGlue.c`,
+`PsychGetMouseButtonState`). The X core pointer path puts buttons 1 to 3 first,
+then modifiers. An XInput device, master or slave, gives X button `k` in
+`buttons(k)`, so a slave can report wheel buttons 4 and 5 as held while a click
+is in progress; `Poll` ignores every entry after the first.
+
 ### 6.2 Wheel
 
-`GetMouseWheel()` returns clicks since the last call. With `WheelMode =
-'encoder'` (default), `Update` writes `enc_diff = -wheel` to the encoder indev
-with state RELEASED. The encoder changes the focused widget's value or scrolls.
-With `WheelMode = 'keys'`, each click becomes an `LV_KEY_UP` or `LV_KEY_DOWN`
-press and release pair on the keypad indev.
+`Poll` returns `wheel`, the clicks since the last call, positive for a turn
+away from the user. With `WheelMode = 'encoder'` (default), `Update` writes
+`enc_diff = -wheel` to the encoder indev with state RELEASED. The encoder
+changes the focused widget's value or scrolls. With `WheelMode = 'keys'`, each
+click becomes an `LV_KEY_UP` (positive) or `LV_KEY_DOWN` (negative) press and
+release pair on the keypad indev.
+
+`GetMouseWheel` alone is not enough. On Linux it reads the valuators of "the
+first detected wheel mouse" and ignores the others, and on Windows it raises
+an error (`PsychBasic/GetMouseWheel.m`). `Start` therefore creates a second
+keyboard queue, on the mouse, where PsychHID supports one, and `Poll` drains
+it with `KbEventGet(device)`. The keyboard queue stays separate: one queue for
+each device is how PsychHID works, and it keeps mouse buttons out of the
+keypad indev.
+
+| Platform | What PsychHID does | Wheel path in `Start` and `Poll` |
+|---|---|---|
+| Linux, `MouseIndex` set | `KbQueueStart` selects `XI_RawButtonPress` and `XI_RawButtonRelease` for every queue, and X11 reports a wheel click as a press and release of button 4 (up), 5 (down), 6 (left) or 7 (right). The event loop subtracts 1 from the button number and stores `index + 1` as `Keycode`, so `Keycode` is the X button number and `keyList(4:7)` selects the wheel. With `numValuators >= 2` the queue also selects `XI_Motion`, whose valuators hold the scroll axes as absolute positions. Queue flag 1 drops raw events flagged `XIKeyRepeat`, which the source notes "will suppress scroll events". Source: `Linux/PsychHID/PsychHIDStandardInterfaces.c`, `KbQueueProcessEvents` and `PsychHIDOSKbQueueStart`. | For each index, `KbQueueCreate(index, keyList, 0)` with `keyList(4:7) = 1`, flags 0. `Poll` counts presses only: `Keycode` 4 is +1, 5 is -1. 6 and 7 are ignored, because the encoder has one axis. The buttons are used, not the valuators: the buttons give whole clicks with a fixed sign, and `numValuators >= 2` would add one event for every mouse movement plus scroll positions that count the same clicks again. |
+| Linux, `MouseIndex` empty | As above. | `GetMouseWheel()`, the Psychtoolbox default: the first slave pointer with a `Rel Vert Wheel` or `Rel Vert Scroll` valuator. |
+| Windows | `GetMouseWheel` raises "not supported". A queue on a DirectInput mouse uses `c_dfDIMouse2`; an axis event with an offset below 12 bytes becomes a `Type` 1 event with `Valuators(offset / 4 + 1)` set when `numValuators` is large enough (clamped to 3), and flag 4 gives the delta rather than a running sum. The wheel is `lZ`, the third axis. Buttons are `Keycode` 1 to 8. Windows enumerates no separate mice: "All connected pointing devices are treated as one unified mouse". Sources: `Windows/PsychHID/PsychHIDStandardInterfaces.c`, `KbQueueProcessEvents` and `PsychHIDOSKbQueueStart`; `PsychHardware/GetMouseIndices.m`. | `KbQueueCreate(dev, zeros(1, 256), 3, 10000, 4)` on each `MouseIndex` entry, or on the first `GetMouseIndices` entry when it is empty. `Poll` sums `Valuators(3)` of the `Type` 1 events and divides by 120 (`WHEEL_DELTA`, positive away from the user); the rest of an incomplete click waits in `kq.wheels(k).rest`. No button is queued. |
+| macOS | `KbQueueCreate` raises "Valuators are not supported on macOS" for `numValuators > 0`, and adds only elements on the keyboard and button usage pages, so the wheel (generic desktop usage `Wheel`) never reaches a queue. `GetMouseWheel` reads HID reports of the mouse. Sources: `OSX/PsychHID/PsychHIDStandardInterfaces.c`, `PsychHIDOSKbQueueCreate`; `PsychBasic/GetMouseWheel.m`. | `GetMouseWheel(index)` for each entry, or `GetMouseWheel()` when `MouseIndex` is empty. |
+
+`kq.wheels` holds one row per working source, with the fields `dev`, `path`
+(`'buttons'`, `'axis'` or `'getmousewheel'`) and `rest`. `Poll` adds the clicks
+of all rows into one wheel value. When a mouse queue cannot be created,
+`Start` falls back to `GetMouseWheel` on that mouse. When that fails too, the
+mouse has no row and `kq.wheelReason` holds both error messages; the other
+mice still work. `kq.wheelPath` names the paths in use, joined by `+`, or is
+`'none'` when no row exists. `Poll` never raises for the wheel: it returns the
+clicks of the working rows, 0 when there is none, and issues warning
+`psychlvgl:NoWheel` once per reason and `Start`, with the reason in the
+message.
+
+PsychHID does not load on the development machine, so only the stubs of
+`tests/stub` exercised these paths (D65). The Linux and Windows paths follow
+the sources above and need a test on a machine with several mice.
 
 ### 6.3 Keyboard and text
 
@@ -471,6 +584,61 @@ tick by 1 ms and increments `stats.tickAnomaly`.
 
 `lv_conf.h` sets `LV_DEF_REFR_PERIOD 1`, so any invalidated area renders on the
 next `Update`. The script's `Flip` cadence limits the frame rate.
+
+### 6.5 Raw device log
+
+`PsychLVGLInput('Poll')` returns a fifth output, `events`, and
+`PsychLVGLFrame` returns it as a third output and keeps it in `ui.events`.
+The input to `Update` does not change; the log is for the script, mostly for
+reaction times. `events` is an Nx6 double matrix, one row per device event,
+sorted by time with a stable sort:
+
+| Column | Content |
+|---|---|
+| 1 `time` | `GetSecs` time. For an event from a queue, the `Time` field of `KbEventGet`, which PsychHID sets when the event arrives. For a polled event, the time `Poll` started. |
+| 2 `device` | Psychtoolbox device index. `NaN` for the default keyboard queue and for the default mouse. |
+| 3 `kind` | 1 key, 2 mouse button, 3 wheel. |
+| 4 `code` | Key: the Psychtoolbox keycode (`KbName`), before the LVGL mapping. Button: 1 left, 2 middle, 3 right. Wheel: 1 vertical, 2 horizontal. |
+| 5 `pressed` | 1 press, 0 release. A wheel row holds the signed clicks: vertical positive away from the user, horizontal positive to the right. |
+| 6 `cooked` | `CookedKey` of a key event, 0 for the other kinds. |
+
+Where the rows come from:
+
+- Keys: every event of every keyboard queue, one row each, after the merge
+  of section 6.0. The same events still go through `PsychLVGLKeyMap` to the
+  keypad indev.
+- Wheel, Linux queue: one row per press of button 4 (vertical +1), 5
+  (vertical -1), 6 (horizontal -1) or 7 (horizontal +1). The vertical rows add
+  up to `wheel`; horizontal rows are in the log only.
+- Wheel, Windows queue: one row per axis event that completes one or more
+  clicks, holding the clicks it completes. `Poll` completes clicks event by
+  event, so the rows add up to `wheel`.
+- Wheel, `GetMouseWheel`: one row per mouse with a non-zero result, at the
+  poll time.
+- Buttons with a queue: when `MouseIndex` is set, every mouse queue also
+  selects buttons 1 to 3 (`keyList(1:7)` on Linux, `keyList(1:3)` on Windows),
+  so press and release rows carry the device time. Linux reports X buttons 1
+  left, 2 middle, 3 right. DirectInput reports buttons in the order left,
+  right, middle (`rgbButtons` of `DIMOUSESTATE2`, Microsoft DirectInput
+  documentation), so `Poll` maps Windows `Keycode` 2 to code 3 and 3 to 2.
+  These events go to the log only: never to the keys, never to the wheel sum.
+- Buttons without a queue: with `MouseIndex` empty, on macOS, or when the
+  queue of `MouseIndex(1)` failed, `Poll` compares `buttons(1:3)` of the
+  `GetMouse` call it already makes with the last poll and writes one row per
+  change, at the poll time. That time is late by up to one frame. Only the
+  pointer mouse has polled rows. The empty default on Windows keeps its
+  button-free queue and uses polled rows too.
+
+The pointer indev always takes `buttons(1)` from the polled `GetMouse` state
+(section 6.1), so hit testing does not depend on the log.
+
+`PsychLVGLEvents('decodeRaw', events)` returns a struct array with `time`,
+`device`, `kind`, `kindName` (`'key'`, `'button'`, `'wheel'`), `code`, `name`
+(`KbName` of a key when `KbName` is on the path, `'left'`, `'middle'`,
+`'right'`, `'vertical'`, `'horizontal'`), `pressed` and `cooked`.
+`PsychLVGLEvents('filterRaw', events, kind, code)` returns the matching rows;
+`kind` is 1 to 3 or the kind name, `code` a number, a vector, a `KbName` for
+keys or one of the names above, and `[]` leaves either unconstrained.
 
 ## 7. Marshaling rules and the generator
 
@@ -839,6 +1007,24 @@ other source file is identical. `run_tests.m` runs under both engines:
   `AddEvent` and `RemoveEvent`; overflow drops oldest and counts.
 - `test_keypad.m`: textarea in the group, inject key rows, `TextareaGetText`
   matches.
+- `test_input.m`: `PsychLVGLInput` against `tests/stub`, where
+  `plv_stub_input` can pretend to be Linux, Windows or macOS: the device
+  indices reach every queue call and `GetMouse`; two presses of button 5 give
+  a wheel of -2, and a wheel of -2 in `WheelMode 'keys'` moves a roller two
+  rows; buttons 6 and 7 and mouse buttons never become keys; the Windows axis
+  path with a half click; the macOS `GetMouseWheel` path; one warning and a
+  zero wheel with no wheel source; `Devices` shape; the options through
+  `PsychLVGLOpen`, `PsychLVGLFrame` and `PsychLVGLClose`; the empty default
+  with no extra calls; two keyboards with interleaved times merged in order;
+  clicks of two mice added on Linux and Windows; one broken mouse that warns
+  while the other scrolls; duplicate and shared indices refused; the position
+  from the master of a slave, the button from the slave, and the floating
+  slave fallback; the raw log: key rows of two keyboards in time order with
+  their devices, keycodes and cooked values, wheel rows that add up to the
+  wheel on Linux and Windows, a horizontal row, queued button rows with
+  device times that reach neither keys nor wheel, the DirectInput button
+  order, polled button rows in the default mode and on macOS,
+  `ui.events` from `PsychLVGLFrame`, and `decodeRaw` and `filterRaw`.
 - `test_dispatch.m`: unknown name, opcode path, argument errors, `Init` twice.
 - `test_gen_marshal.m`: generated; every allowlisted function called once with
   valid arguments, output count and class checked.
@@ -1076,3 +1262,5 @@ section 14.4 and about phase 3 in section 14.5.
 | D62 | The tests carry their own copy of `Ubuntu-Medium.ttf` in `tests/xml/fonts/`, with a `NOTICE.txt` naming the Ubuntu Font Licence 1.0 and the LVGL file it was copied from. The XML fixtures, `test_fonts`, `test_gl_font` and the native smoke test all point at that copy; nothing under `tests/` refers into `third_party/lvgl` any more. The font is test data and is not part of the release packages. | The forward-test CI jobs check out the repository without submodules and download the built package, so `third_party/lvgl` is empty there. The first phase 3 run (35863170235) failed all seven forward jobs with `psychlvgl:XMLReference` warnings for the missing font while every build job passed, because only the build jobs have the submodule. A test must not depend on a tree that its job does not have. |
 | D63 | The documentation is split by reader. `README.md` is for users: what PsychLVGL is, Install from a release zip, keeping and removing the path, a first panel of about 20 lines, the demos, the how-to sections, Known limits, Requirements for a release, and links onward. `DEV.md` takes the build requirements, Get the sources, Build (with the two variants and Tracy), Tests (no-GL, GL, native smoke, a Linux check from Windows), performance measurement, Continuous integration, Regenerating the bindings, the vendored LVGL patches, the XML interpreter and the layout, moved with their text. `PsychLVGLSetup.m` now also sits at the package root, byte for byte the same as `m/PsychLVGLSetup.m`, so a user who unzips a release runs `cd` to the folder and `PsychLVGLSetup`, or `run('<folder>/PsychLVGLSetup.m')`, with nothing on the path. The file finds the package root from its own location: the folder that holds `m/PsychLVGLOpen.m`, or else the parent of its own folder. It gains `'save'`, which runs `savepath` after the path change, and `'remove'`. `remove` calls `PsychLVGL('Shutdown')` when `mislocked('PsychLVGL')` is true (the MEX has no `Shutdown('all')`; `Shutdown` is the one subcommand that unlocks), checks `mislocked` again, prints what to do and returns without a path change if the MEX is still locked, then runs `clear('PsychLVGL')` (`clear('-f', ...)` on Octave, because a plain `clear` there leaves a loaded function resident and the `rmpath` that follows crashed Octave 10.1 on Linux in PsychNanoVG's CI, run 35887011083, while the `-f` form passed in PsychImGui's) and only then `rmpath` on `dist/<arch>`, `dist-sw/<arch>` and `m/`; a package that is not on the path is a no-op. `tests/test_setup.m` checks the two copies and the remove cycle and runs last in the no-GL group, as the one test that changes the path, only after the MEX is unloaded. 735 no-GL checks pass under MATLAB R2023a and Octave 10.1 on Windows, up from 722, and the GL suite still passes its 72. The demos no longer need the source tree and no longer call `addpath`. Their window and Gabor helpers are copies in `m/private` (`psychlvgl_demo_window`, `psychlvgl_demo_window_close`, `psychlvgl_gabor_std`, `psychlvgl_gabor_michelson`), and the tests keep the originals in `tests/gl`. The demo panel moved from `tests/xml/demo` to `examples/xml/gabor_panel`, with its own copy of `Ubuntu-Medium.ttf`, the Ubuntu Font Licence text `UFL.txt` from the LVGL tree, and a `NOTICE.txt`; `globals.xml` names the font as `fonts/Ubuntu-Medium.ttf`, and `test_xml_load` loads the panel from there. This replaces the part of D61 that says the demo needs the source tree. A demo now closes its panel and keeps its window, so both demos run any number of times in one session on one OpenGL context; `sca` closes the window, after which a panel needs a new session (D6). The screenshot mode of `PsychLVGLXMLDemo` still closes the window. `tools/CaptureReadmeScreenshot.m` keeps its `addpath`, as a source tree tool run in a fresh session. Every upload step in `ci.yml` ships `PsychLVGLSetup.m`, `examples` and `docs/images/psychlvgl-xml-demo.png` in addition to the earlier list. `RELEASING.md`, `third_party/PINS.md`, the `build.m` error and the generated help of `m/PsychLVGL.m` point at `DEV.md` where they pointed at the README for build matters, and the help shim error now says to run `PsychLVGLSetup`. | A user could not find how to install: the README opened with build, test and CI material, a release zip left `PsychLVGLSetup` inside `m/`, which is not on the path after an unzip, and there was no way to take the package off the path again. A root wrapper that called the `m/` copy by name would call itself whenever the package root is the current folder, because the current folder comes before the path; a second public setup name would give users two functions for one job. The demos called `addpath` at run time, which is the D35 crash class once the MEX is loaded, and read files that the zips did not carry. |
 | D64 | The build waits out the link second under Octave. `build.m` now ends with `age_mex_file`: under Octave it waits until the second of the MEX file's modification time has passed, at most one second, so no later load can fall inside it. MATLAB has no such check and skips the wait. Reproduced from a core dump in the `gnuoctave/octave:10.1.0` container (gdb hides the timing), and verified there by relinking and testing back to back. | Octave 10.1 rechecks a loaded function when its check time is not later than the last prompt or path stamp, in whole seconds, and `addpath` and `rmpath` set that stamp; it reloads the function when the file's modification time, with sub-second precision, is newer than the parse time truncated to whole seconds (`fcn-info.cc`, `out_of_date_check`). Reloading a MEX function recurses without end, because `remove_all_breakpoints_from_function` looks the function up again, and the process dies of stack exhaustion. So a MEX linked, put on the path and first loaded inside one wall-clock second crashes the first call after any path change. The lock was never the cause; it only made the earlier failures repeatable, because the locked MEX stayed loaded across the path change. CI runs 35887011083 (PsychNanoVG) and the one-session container run here showed the same frames as D35's crash. D35's rule about path changes stands as practice, but its explanation is superseded by this row. |
+| D65 | Input devices can be named and the wheel has a second source (sections 6.0 to 6.2). `PsychLVGLOpen` and `PsychLVGLInput('Start')` take `opts.KeyboardIndex` and `opts.MouseIndex`, the names PsychImGui uses too, each a vector of device indices; duplicates and an index in both lists raise `psychlvgl:Usage`. Each keyboard gets a queue and `Poll` merges their events by `Time`; each mouse gets a wheel source and `Poll` adds their clicks; the pointer follows `MouseIndex(1)`. On Linux a slave `MouseIndex(1)` gives the buttons, and the position comes from its master pointer, found by `locationID` = `interfaceID`, because `GetMouse` on a slave returns raw axes without the window offset (`SCREENGetMouseHelper.c`). Only `buttons(1)` is used, which is the left button on every path. `PsychLVGLInput('Devices')` lists the indices; `Poll` returns `kq` as a fourth output, which `PsychLVGLFrame` keeps in `ui.kq`. The wheel comes from a keyboard queue on the mouse: button 4 and 5 presses on Linux (`numValuators` 0, not the valuators, because the buttons are what X11 reports for each click), the third DirectInput axis on Windows (`numValuators` 3, flag 4, 120 units a click), and `GetMouseWheel` on macOS and as the fallback. Horizontal clicks are ignored. The empty default is unchanged. No C source changed: `Update` still takes one wheel value. The no-GL suite gains `test_input` with 111 checks, and the stubs gain `plv_stub_input`, `GetMouseIndices`, `GetKeyboardIndices`, `IsLinux`, `IsWin` and `IsOSX`; 846 checks pass under MATLAB R2023a and Octave 10.1 on Windows, and the GL suite (72) and `PsychLVGLDemo(3)` still pass under MATLAB with Psychtoolbox. PsychHID does not load on that machine (`LexActivator.dll` is missing), so no real queue ran there; the Linux and Windows queue paths and the master lookup are untested on hardware. | Lab machines have about four keyboards and three mice, and `GetMouseWheel` reads the first wheel mouse on Linux and does not work on Windows. |
+| D66 | A raw device log for reaction times (section 6.5). `PsychLVGLInput('Poll')` returns a fifth output and `PsychLVGLFrame` a third, `[ui, E, events]`, also kept in `ui.events`; the old outputs are unchanged. Each row is `[time device kind code pressed cooked]`, with the `KbEventGet` time for queued events and the poll time for polled ones. A named mouse queue now also selects buttons 1 to 3, for the log only; the pointer indev still uses the polled `GetMouse` state. The Windows wheel now completes clicks event by event instead of once per poll, so the log rows add up to the wheel value. `PsychLVGLEvents` gains `decodeRaw` and `filterRaw`. The widget event ring keeps the frame's update time (section 5.4), and the `Update` contract is unchanged. `test_input` grows to 149 checks; 884 checks pass under MATLAB R2023a and Octave 10.1 on Windows, and the GL suite (72) and `PsychLVGLDemo(3)` still pass under MATLAB with Psychtoolbox. The DirectInput button order left, right, middle comes from Microsoft's documentation, not from the PTB source, and was not seen on hardware here. | The event ring stamps widget events with the frame time and `Poll` dropped the `KbEventGet` time, so a script could not compute a reaction time from the device event. |

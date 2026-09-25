@@ -178,7 +178,12 @@ that a panel controls.
 PsychLVGLDemo          % the panel built with PsychLVGL calls; ESCAPE ends it
 PsychLVGLXMLDemo       % the same experiment, with its panel loaded from XML
 PsychLVGLDemo(3)       % runs for three seconds
+PsychLVGLDemo([], struct('KeyboardIndex', 4, 'MouseIndex', 7))   % named devices
+PsychLVGLXMLDemo([], '', struct('KeyboardIndex', 4, 'MouseIndex', 7))
 ```
+
+The device indices come from `PsychLVGLInput('Devices')`; see
+[Select the keyboard and the mouse](#select-the-keyboard-and-the-mouse).
 
 `PsychLVGLDemo` has a contrast slider, a spatial frequency dropdown, a text
 area, a chart of the contrast history and a status label. `PsychLVGLXMLDemo`
@@ -204,8 +209,8 @@ Four calls carry the OpenGL bookkeeping, so the script never writes a
 
 | Call | What it does |
 |---|---|
-| `ui = PsychLVGLOpen(win, w, h [, dst] [, opts])` | Creates the panel, wraps its OpenGL texture as a Psychtoolbox texture, starts the keyboard queue. |
-| `[ui, E] = PsychLVGLFrame(ui)` | One frame: input, update, draw the panel, return the events. |
+| `ui = PsychLVGLOpen(win, w, h [, dst] [, opts])` | Creates the panel, wraps its OpenGL texture as a Psychtoolbox texture, starts the keyboard queue and the mouse queue. |
+| `[ui, E, events] = PsychLVGLFrame(ui)` | One frame: input, update, draw the panel, return the widget events `E` and the raw device events `events`. `[ui, E]` still works. |
 | `[...] = PsychLVGLGL(ui, subcommand, ...)` | Any single subcommand that needs the OpenGL context. |
 | `PsychLVGLClose(ui)` | Shuts the panel down and frees the texture. Safe twice. |
 
@@ -216,7 +221,8 @@ InitializeMatlabOpenGL(1);                 % before the window, not after
 
 panelW = 400; panelH = 600;
 dst = [20 20 20+panelW 20+panelH];
-ui = PsychLVGLOpen(win, panelW, panelH, dst);
+opts = struct('KeyboardIndex', [], 'MouseIndex', []);   % [] is the PTB default
+ui = PsychLVGLOpen(win, panelW, panelH, dst, opts);
 
 scr = PsychLVGL('ScreenActive');
 sl = PsychLVGL('SliderCreate', scr);
@@ -234,6 +240,83 @@ end
 
 PsychLVGLClose(ui);
 ```
+
+### Select the keyboard and the mouse
+
+On a computer with more than one keyboard or mouse, the Psychtoolbox default
+device is not always the one the participant uses. Name the devices:
+
+```matlab
+d = PsychLVGLInput('Devices');   % prints the index and name of each device
+opts.KeyboardIndex = 4;          % an index from the keyboard list
+opts.MouseIndex    = 7;          % an index from the mouse list
+ui = PsychLVGLOpen(win, panelW, panelH, dst, opts);
+```
+
+Both fields accept a vector. Each keyboard in `KeyboardIndex` gets its own
+queue, and the panel gets their keys in the order they were typed. Each mouse
+in `MouseIndex` can turn the wheel. Only the first mouse in `MouseIndex` moves
+and clicks the panel pointer. A device can appear only once in the two lists.
+
+```matlab
+opts.KeyboardIndex = [0 4];      % two keyboards
+opts.MouseIndex    = [7 9];      % mouse 7 points and clicks; both scroll
+```
+
+On Linux, use mice that the list shows as a "slave pointer". The names are
+the ones `xinput list` shows. The panel pointer then follows the cursor that
+mouse moves, but only a click on that mouse presses a panel button. `[]` for
+either field keeps the Psychtoolbox default.
+
+The wheel source depends on the platform:
+
+| Platform | Wheel source |
+|---|---|
+| Linux | A keyboard queue on each mouse in `MouseIndex`, which receives each wheel click as button 4 or 5. Without `MouseIndex`, `GetMouseWheel`, which reads the first wheel mouse only. |
+| Windows | A keyboard queue on each mouse. Windows usually combines all mice into one. |
+| macOS | `GetMouseWheel` on each mouse in `MouseIndex`. |
+
+If no source works, the wheel reads as zero and a warning
+(`psychlvgl:NoWheel`) tells you why, once. On Windows and macOS, the pointer
+position and the click come from all mice together; Psychtoolbox reads a
+single mouse only on Linux. SPEC section 6 has the details and the Psychtoolbox source for each
+row.
+
+### Measure reaction times
+
+The widget events in `E` carry the time of the frame that produced them, not
+the time of the key press. For a reaction time, use the raw device events.
+`PsychLVGLFrame` returns them as a third output and keeps them in
+`ui.events`: one row per device event, `[time device kind code pressed
+cooked]`, in time order. `time` is the `GetSecs` time that Psychtoolbox
+recorded for the key, button or wheel event. `kind` is 1 for a key, 2 for a
+mouse button and 3 for the wheel. `code` is the `KbName` keycode of a key.
+
+This example gets the time of the first press of the space bar after the
+stimulus onset:
+
+```matlab
+space = KbName('space');
+onset = Screen('Flip', win);          % stimulus onset
+rt = NaN;
+while isnan(rt)
+    [ui, E, events] = PsychLVGLFrame(ui);
+    R = PsychLVGLEvents('filterRaw', events, 'key', space);
+    R = R(R(:, 5) == 1 & R(:, 1) >= onset, :);   % presses after the onset
+    if ~isempty(R)
+        rt = R(1, 1) - onset;
+    end
+    Screen('Flip', win);
+end
+```
+
+Mouse button rows carry the device time only for mice named in
+`MouseIndex` on Linux and Windows. Without `MouseIndex`, and on macOS, the
+button rows come from the mouse state that each frame reads, so their time
+is the frame's poll time, up to one frame late. `PsychLVGLEvents('decodeRaw',
+events)` gives a struct array with names. SPEC section 6.5 has the details.
+
+### Widgets and the OpenGL context
 
 Widget calls need no OpenGL context, so they go straight to `PsychLVGL`. Only
 `Init`, `Update` and `Shutdown` touch OpenGL, and the helpers wrap those three.

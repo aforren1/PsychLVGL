@@ -122,6 +122,12 @@ function PsychLVGLDemo(seconds, opts)
     frame = 0;
     tStop = GetSecs() + seconds;
     while running
+        phase = phase + 4;
+        % modulateColor is [1 1 1 0], not empty: the Michelson relation above
+        % only holds while the modulation colour is unit white.
+        Screen('DrawTexture', win, gabortex, [], gaborRect, 0, [], [], [1 1 1 0], [], ...
+               kPsychDontDoRotation, [phase, freq / 100, 40, contrast, 1, 0, 0, 0]);
+
         [ui, E] = PsychLVGLFrame(ui);
 
         S = PsychLVGLEvents('decode', E);
@@ -141,12 +147,6 @@ function PsychLVGLDemo(seconds, opts)
         if mod(frame, 6) == 0
             PsychLVGL('ChartSetNextValue', history, series, round(contrast * 100));
         end
-
-        phase = phase + 4;
-        % modulateColor is [1 1 1 0], not empty: the Michelson relation above
-        % only holds while the modulation colour is unit white.
-        Screen('DrawTexture', win, gabortex, [], gaborRect, 0, [], [], [1 1 1 0], [], ...
-               kPsychDontDoRotation, [phase, freq / 100, 40, contrast, 1, 0, 0, 0]);
 
         if ~checked
             % One automated look at the first frame, so a shader or colour

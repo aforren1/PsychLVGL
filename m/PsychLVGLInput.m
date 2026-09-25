@@ -46,21 +46,22 @@ function varargout = PsychLVGLInput(cmd, varargin)
 %   encoder has one axis.
 %
 %   events is the raw device log of this poll, for reaction times. It is an
-%   Nx6 double matrix, one row per device event in time order:
-%
-%     [time device kind code pressed cooked]
+%   Nx1 struct array, one element per device event in time order, 0x1 when
+%   there is none, with these fields:
 %
 %     time     GetSecs time. For an event from a queue this is the time
 %              PsychHID recorded; for a polled button it is the poll time.
 %     device   Psychtoolbox device index; NaN for the default keyboard queue
 %              and for the default mouse.
-%     kind     1 key, 2 mouse button, 3 wheel.
+%     kind     'key', 'button' or 'wheel'.
 %     code     Key: the Psychtoolbox keycode (KbName), before the LVGL
 %              mapping. Button: 1 left, 2 middle, 3 right. Wheel: 1 vertical,
 %              2 horizontal.
-%     pressed  1 press, 0 release. Wheel rows hold the signed clicks
+%     name     KbName of the key when KbName is on the path; 'left',
+%              'middle' or 'right'; 'vertical' or 'horizontal'; else ''.
+%     pressed  1 press, 0 release. Wheel events hold the signed clicks
 %              instead: vertical positive away from the user, horizontal
-%              positive to the right. The vertical rows add up to wheel.
+%              positive to the right. The vertical ones add up to wheel.
 %     cooked   CookedKey of a key event, 0 for the other kinds.
 %
 %   Button rows carry the device time only for mice in MouseIndex that have
@@ -68,8 +69,8 @@ function varargout = PsychLVGLInput(cmd, varargin)
 %   queue fails, the rows come from changes of the GetMouse state of the
 %   pointer mouse and carry the poll time, which is up to one frame late.
 %   The pointer indev always uses the GetMouse state, and button events
-%   never reach the keys or the wheel. PsychLVGLEvents('decodeRaw', events)
-%   and ('filterRaw', events, kind, code) read the log.
+%   never reach the keys or the wheel. PsychLVGLEvents('filterRaw', events,
+%   kind, code) picks events by kind and code.
 %
 %   'Devices' prints the keyboards and mice and returns d.keyboards and
 %   d.mice, struct arrays with the fields index, product, usageName,
@@ -391,7 +392,7 @@ function [mouse, wheel, keys, kq, events] = do_poll(kq, win, dst, panelW, panelH
     mouse = [0 0 0];
     wheel = 0;
     keys = zeros(0, 2);
-    events = zeros(0, 6);
+    events = plv_raw_events([]);
     if nargin < 1; kq = []; end
 
     if nargin < 5 || ~isstruct(kq) || ~kq.hasPTB
@@ -409,11 +410,14 @@ function [mouse, wheel, keys, kq, events] = do_poll(kq, win, dst, panelW, panelH
     [keys, krows] = plv_poll_keys(kq);
     [kq, brows] = plv_poll_buttons(kq, buttons, tPoll);
 
-    events = [krows; wrows; brows];
-    if size(events, 1) > 1
-        [~, order] = sort(events(:, 1));   % stable: equal times keep this order
-        events = events(order, :);
+    % Rows first and one struct array at the end, because Poll runs every
+    % frame and a struct array grown element by element reallocates each time.
+    rows = [krows; wrows; brows];
+    if size(rows, 1) > 1
+        [~, order] = sort(rows(:, 1));   % stable: equal times keep this order
+        rows = rows(order, :);
     end
+    events = plv_raw_events(rows);
 end
 
 function [x, y, buttons] = plv_poll_pointer(kq, win)

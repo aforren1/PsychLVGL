@@ -287,13 +287,22 @@ row.
 The widget events in `E` carry the time of the frame that produced them, not
 the time of the key press. For a reaction time, use the raw device events.
 `PsychLVGLFrame` returns them as a third output and keeps them in
-`ui.events`: one row per device event, `[time device kind code pressed
-cooked]`, in time order. `time` is the `GetSecs` time that Psychtoolbox
-recorded for the key, button or wheel event. `kind` is 1 for a key, 2 for a
-mouse button and 3 for the wheel. `code` is the `KbName` keycode of a key.
+`ui.events`. They are a struct array, one element per device event, in time
+order, with these fields:
 
-This example gets the time of the first press of the space bar after the
-stimulus onset:
+| Field | Content |
+|---|---|
+| `time` | The `GetSecs` time that Psychtoolbox recorded for the event. |
+| `device` | The device index, `NaN` for the default keyboard or mouse. |
+| `kind` | `'key'`, `'button'` or `'wheel'`. |
+| `code` | The `KbName` keycode of a key; 1, 2, 3 for the left, middle, right button; 1 or 2 for the vertical or horizontal wheel. |
+| `name` | The key name, `'left'`, `'middle'`, `'right'`, `'vertical'` or `'horizontal'`. |
+| `pressed` | 1 for a press, 0 for a release; the signed clicks for the wheel. |
+| `cooked` | The character code of a key, 0 for the other kinds. |
+
+With no events it is an empty struct array with the same fields, so
+`[events.time]` always works. This example gets the time of the first press
+of the space bar after the stimulus onset:
 
 ```matlab
 space = KbName('space');
@@ -301,20 +310,24 @@ onset = Screen('Flip', win);          % stimulus onset
 rt = NaN;
 while isnan(rt)
     [ui, E, events] = PsychLVGLFrame(ui);
-    R = PsychLVGLEvents('filterRaw', events, 'key', space);
-    R = R(R(:, 5) == 1 & R(:, 1) >= onset, :);   % presses after the onset
-    if ~isempty(R)
-        rt = R(1, 1) - onset;
+    t = [events(strcmp({events.kind}, 'key') & [events.code] == space & ...
+                [events.pressed] == 1).time];
+    t = t(t >= onset);
+    if ~isempty(t)
+        rt = t(1) - onset;
     end
     Screen('Flip', win);
 end
 ```
 
-Mouse button rows carry the device time only for mice named in
+`PsychLVGLEvents('filterRaw', events, 'key', 'space')` gives the same
+elements in one call.
+
+Mouse button events carry the device time only for mice named in
 `MouseIndex` on Linux and Windows. Without `MouseIndex`, and on macOS, the
-button rows come from the mouse state that each frame reads, so their time
-is the frame's poll time, up to one frame late. `PsychLVGLEvents('decodeRaw',
-events)` gives a struct array with names. SPEC section 6.5 has the details.
+button events come from the mouse state that each frame reads, so their time
+is the frame's poll time, up to one frame late. SPEC section 6.5 has the
+details.
 
 ### Widgets and the OpenGL context
 

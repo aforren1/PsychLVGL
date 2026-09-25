@@ -230,8 +230,19 @@ function t_raw()
     plv_stub_input('push', 7, btn(5, 1, 6.0));
     plv_stub_input('push', 9, btn(4, 1, 5.5));
     plv_stub_input('push', 9, btn(6, 1, 7.0));
-    [~, wheel, keys, kq, ev] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    [~, wheel, keys, kq, evS] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    ev = as_rows(evS);
     k = ev(ev(:, 3) == 1, :);
+    names = {'time', 'device', 'kind', 'code', 'name', 'pressed', 'cooked'};
+    plv_eq('the log is a struct array with seven fields in order', fieldnames(evS)', names);
+    plv_eq('the log is Nx1', size(evS), [7 1]);
+    plv_assert('kind is char', all(cellfun(@ischar, {evS.kind})));
+    plv_assert('name is char', all(cellfun(@ischar, {evS.name})));
+    plv_assert('the numeric fields are double', all(cellfun(@(f) all(cellfun(@(v) isa(v, 'double') && isscalar(v), {evS.(f)})), ...
+               {'time', 'device', 'code', 'pressed', 'cooked'})));
+    plv_eq('kinds by name', {evS([1 2 3 4]).kind}, {'key', 'key', 'key', 'wheel'});
+    plv_eq('a wheel event is named by its axis', evS(4).name, 'vertical');
+    plv_eq('a key has no name without KbName', evS(1).name, '');
     plv_eq('key rows are in time order', k(:, 1)', [1 2 3]);
     plv_eq('key rows carry the device index', k(:, 2)', [0 4 0]);
     plv_eq('key rows carry the PTB keycode', k(:, 4)', [65 66 67]);
@@ -250,7 +261,9 @@ function t_raw()
     plv_stub_input('push', 7, btn(1, 0, 10.25));
     plv_stub_input('push', 7, btn(3, 1, 10.5));
     plv_stub_input('mouse', 7, 0, 0, [1 0 0]);
-    [~, wheel, keys, kq, ev] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100); %#ok<ASGLU>
+    [~, wheel, keys, kq, evS] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100); %#ok<ASGLU>
+    ev = as_rows(evS);
+    plv_eq('button events are named', {evS.name}, {'left', 'left', 'right'});
     plv_eq('queued button rows carry device times', ev, ...
            [10 7 2 1 1 0; 10.25 7 2 1 0 0; 10.5 7 2 3 1 0]);
     plv_eq('buttons do not turn the wheel', wheel, 0);
@@ -265,7 +278,8 @@ function t_raw()
     plv_eq('a named Windows mouse queues buttons 1 to 3', find(c{2}{2}), 1:3);
     plv_stub_input('push', 9, btn(2, 1, 20.0));
     plv_stub_input('push', 9, axis_evt([0 0 240], 20.5));
-    [~, wheel, ~, ~, ev] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    [~, wheel, ~, ~, evS] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    ev = as_rows(evS);
     plv_eq('DirectInput button 2 is the right button', ev(1, :), [20 9 2 3 1 0]);
     plv_eq('an axis event that completes two clicks is one row', ev(2, :), [20.5 9 3 1 2 0]);
     plv_eq('and the wheel agrees', wheel, 2);
@@ -276,16 +290,24 @@ function t_raw()
     kq = PsychLVGLInput('Start', 1, struct());
     plv_stub_input('mouse', [], 0, 0, [1 0 0]);
     plv_stub_input('push', [], key('x', 30.0, 88));
-    [~, ~, ~, kq, ev] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    [~, ~, ~, kq, evS] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    ev = as_rows(evS);
     b = ev(ev(:, 3) == 2, :);
     plv_eq('a polled press is one row from the default mouse', b(:, 2:6), [NaN 2 1 1 0]);
     plv_assert('a polled row carries the poll time', b(1, 1) > 30);
     k = ev(ev(:, 3) == 1, :);
     plv_eq('the default keyboard is NaN', k(:, [1 2 4]), [30 NaN 88]);
-    [~, ~, ~, kq, ev] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    [~, ~, ~, kq, evS] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    ev = as_rows(evS);
     plv_assert('a held button gives no new row', isempty(ev));
+    plv_eq('no events is a 0x1 struct array', size(evS), [0 1]);
+    plv_eq('with the seven fields', fieldnames(evS)', ...
+           {'time', 'device', 'kind', 'code', 'name', 'pressed', 'cooked'});
+    plv_assert('[events.time] works on no events', isempty([evS.time]));
+    plv_eq('numel works on no events', numel(evS), 0);
     plv_stub_input('mouse', [], 0, 0, [0 0 1]);
-    [~, ~, ~, ~, ev] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    [~, ~, ~, ~, evS] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    ev = as_rows(evS);
     plv_eq('a release and a right press are two rows', ev(:, 4:5), [1 0; 3 1]);
 
     % The same with a named mouse whose queue fails: polled rows, with the
@@ -294,28 +316,31 @@ function t_raw()
     plv_stub_input('platform', 'mac');
     kq = PsychLVGLInput('Start', 1, struct('MouseIndex', 7));
     plv_stub_input('mouse', 7, 0, 0, [1 0 0]);
-    [~, ~, ~, ~, ev] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    [~, ~, ~, ~, evS] = PsychLVGLInput('Poll', kq, 1, [0 0 100 100], 100, 100);
+    ev = as_rows(evS);
     plv_eq('macOS buttons are polled from MouseIndex', ev(:, 2:5), [7 2 1 1]);
 
-    % The decode and filter helpers.
+    % filterRaw on the struct array.
     raw = [1 0 1 65 1 97; 2 7 2 1 1 0; 3 7 3 1 -2 0; 4 NaN 2 3 0 0];
-    S = PsychLVGLEvents('decodeRaw', raw);
-    plv_eq('decodeRaw gives one struct per row', size(S), [4 1]);
-    plv_eq('decodeRaw fields', fieldnames(S)', ...
-           {'time', 'device', 'kind', 'kindName', 'code', 'name', 'pressed', 'cooked'});
-    plv_eq('decodeRaw kind names', {S.kindName}, {'key', 'button', 'wheel', 'button'});
-    plv_eq('decodeRaw button name', S(2).name, 'left');
-    plv_eq('decodeRaw wheel name', S(3).name, 'vertical');
-    plv_eq('decodeRaw keeps the signed clicks', S(3).pressed, -2);
-    plv_eq('decodeRaw keeps cooked', S(1).cooked, 97);
-    E0 = PsychLVGLEvents('decodeRaw', zeros(0, 6));
-    plv_assert('decodeRaw of nothing is empty', isempty(E0) && isstruct(E0));
-    plv_eq('filterRaw by kind name', PsychLVGLEvents('filterRaw', raw, 'button'), raw([2 4], :));
-    plv_eq('filterRaw by button name', PsychLVGLEvents('filterRaw', raw, 'button', 'right'), raw(4, :));
-    plv_eq('filterRaw by keycode', PsychLVGLEvents('filterRaw', raw, 1, 65), raw(1, :));
-    plv_eq('filterRaw with nothing constrained', PsychLVGLEvents('filterRaw', raw), raw);
-    plv_throws('decodeRaw wants six columns', 'psychlvgl:Usage', ...
-               @() PsychLVGLEvents('decodeRaw', zeros(2, 5)));
+    S = plv_raw_from_rows(raw);
+    plv_eq('filterRaw by kind', as_rows(PsychLVGLEvents('filterRaw', S, 'button')), raw([2 4], :));
+    plv_eq('filterRaw by button name', as_rows(PsychLVGLEvents('filterRaw', S, 'button', 'right')), raw(4, :));
+    plv_eq('filterRaw by keycode', as_rows(PsychLVGLEvents('filterRaw', S, 'key', 65)), raw(1, :));
+    plv_eq('filterRaw with nothing constrained', as_rows(PsychLVGLEvents('filterRaw', S)), raw);
+    R = PsychLVGLEvents('filterRaw', S, 'wheel', 2);
+    plv_eq('filterRaw with no match is 0x1', size(R), [0 1]);
+    plv_eq('and keeps the fields', fieldnames(R)', fieldnames(S)');
+    R = PsychLVGLEvents('filterRaw', S([]), 'key', 65);
+    plv_eq('filterRaw of no events is 0x1', size(R), [0 1]);
+    R = PsychLVGLEvents('filterRaw', [], 'key');
+    plv_eq('filterRaw of [] is a 0x1 struct array', [size(R), isstruct(R)], [0 1 1]);
+    plv_throws('filterRaw wants a kind name', 'psychlvgl:Usage', ...
+               @() PsychLVGLEvents('filterRaw', S, 1));
+    plv_throws('decodeRaw is gone', 'psychlvgl:Usage', ...
+               @() PsychLVGLEvents('decodeRaw', S));
+    % The README example, on the same data.
+    t = [S([S.code] == 65 & [S.pressed] == 1).time];
+    plv_eq('the README reaction time example', t, 1);
 end
 
 % --- Windows: one DirectInput mouse, wheel as the third axis ----------------
@@ -479,7 +504,7 @@ function t_open_frame()
     plv_stub_input('push', 7, btn(5, 1));
     [ui, E, events] = PsychLVGLFrame(ui); %#ok<ASGLU>
     plv_eq('Frame stores the raw log in ui.events', ui.events, events);
-    plv_eq('the raw log has six columns', size(events, 2), 6);
+    plv_assert('the raw log is a struct array', isstruct(events) && size(events, 2) == 1);
     g = calls('GetMouse');
     plv_eq('Frame reads the button on MouseIndex', g{end}, {1, 7});
     plv_eq('Frame drained the mouse queue', plv_stub_input('avail', 7), 0);
@@ -506,6 +531,24 @@ function e = btn(code, pressed, t)
     e = struct('Type', 0, 'Time', t, 'Pressed', pressed, 'Keycode', code, ...
                'CookedKey', -1, 'ButtonStates', 0, 'Motion', 0, 'X', 0, 'Y', 0, ...
                'NormX', 0, 'NormY', 0, 'Valuators', zeros(1, 0));
+end
+
+function m = as_rows(ev)
+% The struct array back to [time device kind code pressed cooked], kind as
+% 1 key, 2 button, 3 wheel, so the numeric checks stay short.
+    m = zeros(numel(ev), 6);
+    for k = 1:numel(ev)
+        m(k, :) = [ev(k).time, ev(k).device, find(strcmp(ev(k).kind, {'key', 'button', 'wheel'})), ...
+                   ev(k).code, ev(k).pressed, ev(k).cooked];
+    end
+end
+
+function S = plv_raw_from_rows(m)
+    kinds = {'key', 'button', 'wheel'};
+    n = size(m, 1);
+    S = struct('time', num2cell(m(:, 1)), 'device', num2cell(m(:, 2)), ...
+               'kind', kinds(m(:, 3))', 'code', num2cell(m(:, 4)), 'name', repmat({''}, n, 1), ...
+               'pressed', num2cell(m(:, 5)), 'cooked', num2cell(m(:, 6)));
 end
 
 function v = first_args(c)

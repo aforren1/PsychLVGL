@@ -352,6 +352,13 @@ Column 5 is the frame's update time, the same for every event of one
 but it is not when the participant pressed the key or the button. The raw
 device log of section 6.5 carries the device time; use it for reaction times.
 
+The two logs also differ in form. The MEX fills `E` into one block of doubles
+with a single `mxCreateDoubleMatrix`, which costs far less per frame than a
+struct array created from C, and `decode` gives names when a script wants
+them. The raw device log is built in MATLAB from the Psychtoolbox queues,
+where a struct array with named fields costs one `struct` call per frame, so it
+is a struct array from the start.
+
 Default subscriptions per object: CLICKED, VALUE_CHANGED, PRESSED, RELEASED,
 FOCUSED, DEFOCUSED, READY, CANCEL. `AddEvent` and `RemoveEvent` change the
 mask. The ring holds `QueueCapacity` records. On overflow the oldest record is
@@ -367,14 +374,14 @@ follows `Screen('OpenWindow')` and `Screen('Close')`, and
 | File | Purpose |
 |---|---|
 | `m/PsychLVGLOpen.m` | `ui = PsychLVGLOpen(win, w, h [, dst] [, opts])`. Checks that 3D graphics are on and that `opts.KeyboardIndex` and `opts.MouseIndex` are valid (section 6.0), wraps `Init` in a BeginOpenGL pair, wraps the GL texture with `Screen('SetOpenGLTexture')`, starts the keyboard queue and the mouse queue, returns the struct the script keeps. |
-| `m/PsychLVGLFrame.m` | `[ui, E] = PsychLVGLFrame(ui)` or `[ui, E, events] = PsychLVGLFrame(ui)`. Input, BeginOpenGL, `Update`, EndOpenGL, `DrawTexture`, `Poll`. `events` is the raw device log of the frame (section 6.5), also kept in `ui.events`. The script still owns `Screen('Flip')`. |
+| `m/PsychLVGLFrame.m` | `[ui, E] = PsychLVGLFrame(ui)` or `[ui, E, events] = PsychLVGLFrame(ui)`. Input, BeginOpenGL, `Update`, EndOpenGL, `DrawTexture`, `Poll`. `events` is the raw device log of the frame, an Nx1 struct array (section 6.5), also kept in `ui.events`. The script still owns `Screen('Flip')`. |
 | `m/PsychLVGLGL.m` | `[...] = PsychLVGLGL(ui, subcommand, ...)`. Wraps any one subcommand marked GL. Calls straight through when `Screen('GetOpenGLDrawMode')` reports the userspace context is already current. |
 | `m/PsychLVGLClose.m` | `PsychLVGLClose(ui)`. Wraps `Shutdown`, closes the PTB texture, stops the keyboard queue. Safe twice, and safe after the window is closed. |
 | `m/PsychLVGLSetup.m` | Puts `dist/<arch>` and `m/` on the path for this engine and platform. `'save'` also runs `savepath`. `'remove'` shuts the MEX down if it is locked, clears it, and only then takes `dist/<arch>`, `dist-sw/<arch>` and `m/` of this package off the path; it stops without a path change when the MEX stays locked, and does nothing when the package is not on the path. An identical copy sits at the package root, so a fresh unzip can call it with nothing on the path (D63). |
 | `m/PsychLVGL.m` | Help text only. The MEX shadows it once built. Generated. |
 | `m/PsychLVGLInput.m` | `Start` (with `opts.KeyboardIndex`, `opts.MouseIndex`), `Poll` (returns `kq` as a fourth output and the raw device log as a fifth), `Stop`, `Devices`. Wraps `KbQueueCreate`, `KbQueueStart`, `KbEventGet`, `GetMouse`, `GetMouseWheel`, `GetKeyboardIndices`, `GetMouseIndices`. Converts mouse to panel pixels, the wheel to clicks (section 6.2) and key events to LVGL key codes. |
 | `m/PsychLVGLKeyMap.m` | PTB key event to LVGL key code, section 6.3. |
-| `m/PsychLVGLEvents.m` | `decode` and `filter` for the widget events, `decodeRaw` and `filterRaw` for the raw device log. |
+| `m/PsychLVGLEvents.m` | `decode` and `filter` for the widget event matrix, `filterRaw` for the raw device struct array. |
 | `m/PsychLVGLOp.m` | Generated struct of opcodes. |
 | `m/PsychLVGLDemo.m` | Demo: Gabor patch controlled by a slider, a dropdown, a text area. Phase 2 adds a contrast history chart and a style shared by two widgets. |
 | `m/PsychLVGLLoadXML.m` | `[root, named] = PsychLVGLLoadXML(file [, parent] [, opts])`. Phase 3. Builds the user interface of an LVGL editor `<screen>` or `<component>` file with ordinary PsychLVGL calls. `named` holds the handles by `name` attribute and the subject table in `named.subjects`. `opts`: `AssetDir`, `Consts`, `Warn`, `Globals`, `ComponentDirs`. |
@@ -590,19 +597,27 @@ next `Update`. The script's `Flip` cadence limits the frame rate.
 `PsychLVGLInput('Poll')` returns a fifth output, `events`, and
 `PsychLVGLFrame` returns it as a third output and keeps it in `ui.events`.
 The input to `Update` does not change; the log is for the script, mostly for
-reaction times. `events` is an Nx6 double matrix, one row per device event,
-sorted by time with a stable sort:
+reaction times. `events` is an Nx1 struct array, one element per device event,
+sorted by time with a stable sort. With no events it is a 0x1 struct array
+with the same fields, so `[events.time]` and `numel(events)` always work, and
+`PsychLVGLOpen` sets `ui.events` to that. The fields, in this order:
 
-| Column | Content |
-|---|---|
-| 1 `time` | `GetSecs` time. For an event from a queue, the `Time` field of `KbEventGet`, which PsychHID sets when the event arrives. For a polled event, the time `Poll` started. |
-| 2 `device` | Psychtoolbox device index. `NaN` for the default keyboard queue and for the default mouse. |
-| 3 `kind` | 1 key, 2 mouse button, 3 wheel. |
-| 4 `code` | Key: the Psychtoolbox keycode (`KbName`), before the LVGL mapping. Button: 1 left, 2 middle, 3 right. Wheel: 1 vertical, 2 horizontal. |
-| 5 `pressed` | 1 press, 0 release. A wheel row holds the signed clicks: vertical positive away from the user, horizontal positive to the right. |
-| 6 `cooked` | `CookedKey` of a key event, 0 for the other kinds. |
+| Field | Class | Content |
+|---|---|---|
+| `time` | double | `GetSecs` time. For an event from a queue, the `Time` field of `KbEventGet`, which PsychHID sets when the event arrives. For a polled event, the time `Poll` started. |
+| `device` | double | Psychtoolbox device index. `NaN` for the default keyboard queue and for the default mouse. |
+| `kind` | char | `'key'`, `'button'` or `'wheel'`. |
+| `code` | double | Key: the Psychtoolbox keycode (`KbName`), before the LVGL mapping. Button: 1 left, 2 middle, 3 right. Wheel: 1 vertical, 2 horizontal. |
+| `name` | char | Key: `KbName(code)` when `KbName` is on the path. Button: `'left'`, `'middle'`, `'right'`. Wheel: `'vertical'`, `'horizontal'`. Otherwise `''`. |
+| `pressed` | double | 1 press, 0 release. A wheel event holds the signed clicks: vertical positive away from the user, horizontal positive to the right. |
+| `cooked` | double | `CookedKey` of a key event, 0 for the other kinds. |
 
-Where the rows come from:
+`Poll` collects the events as rows of a preallocated numeric matrix, sorts
+it, and builds the struct array with one `struct` call from cell columns
+(`m/private/plv_raw_events.m`). A struct array grown one element at a time
+would reallocate on every event of every frame.
+
+Where the events come from:
 
 - Keys: every event of every keyboard queue, one row each, after the merge
   of section 6.0. The same events still go through `PsychLVGLKeyMap` to the
@@ -632,13 +647,11 @@ Where the rows come from:
 The pointer indev always takes `buttons(1)` from the polled `GetMouse` state
 (section 6.1), so hit testing does not depend on the log.
 
-`PsychLVGLEvents('decodeRaw', events)` returns a struct array with `time`,
-`device`, `kind`, `kindName` (`'key'`, `'button'`, `'wheel'`), `code`, `name`
-(`KbName` of a key when `KbName` is on the path, `'left'`, `'middle'`,
-`'right'`, `'vertical'`, `'horizontal'`), `pressed` and `cooked`.
-`PsychLVGLEvents('filterRaw', events, kind, code)` returns the matching rows;
-`kind` is 1 to 3 or the kind name, `code` a number, a vector, a `KbName` for
-keys or one of the names above, and `[]` leaves either unconstrained.
+`PsychLVGLEvents('filterRaw', events, kind, code)` returns the matching
+elements as an Mx1 struct array, 0x1 when nothing matches or `events` is
+empty. `kind` is the kind name; `code` is a number, a vector, a `KbName` for
+keys, or one of the button and wheel names above; `[]` leaves either
+unconstrained. There is no `decodeRaw`: the log already has named fields.
 
 ## 7. Marshaling rules and the generator
 
@@ -1024,7 +1037,9 @@ other source file is identical. `run_tests.m` runs under both engines:
   wheel on Linux and Windows, a horizontal row, queued button rows with
   device times that reach neither keys nor wheel, the DirectInput button
   order, polled button rows in the default mode and on macOS,
-  `ui.events` from `PsychLVGLFrame`, and `decodeRaw` and `filterRaw`.
+  `ui.events` from `PsychLVGLFrame`; the field names, order and classes of the
+  struct array and the 0x1 empty case; and `filterRaw`, including no match,
+  no events, the README example, and the removed `decodeRaw`.
 - `test_dispatch.m`: unknown name, opcode path, argument errors, `Init` twice.
 - `test_gen_marshal.m`: generated; every allowlisted function called once with
   valid arguments, output count and class checked.
@@ -1263,4 +1278,4 @@ section 14.4 and about phase 3 in section 14.5.
 | D63 | The documentation is split by reader. `README.md` is for users: what PsychLVGL is, Install from a release zip, keeping and removing the path, a first panel of about 20 lines, the demos, the how-to sections, Known limits, Requirements for a release, and links onward. `DEV.md` takes the build requirements, Get the sources, Build (with the two variants and Tracy), Tests (no-GL, GL, native smoke, a Linux check from Windows), performance measurement, Continuous integration, Regenerating the bindings, the vendored LVGL patches, the XML interpreter and the layout, moved with their text. `PsychLVGLSetup.m` now also sits at the package root, byte for byte the same as `m/PsychLVGLSetup.m`, so a user who unzips a release runs `cd` to the folder and `PsychLVGLSetup`, or `run('<folder>/PsychLVGLSetup.m')`, with nothing on the path. The file finds the package root from its own location: the folder that holds `m/PsychLVGLOpen.m`, or else the parent of its own folder. It gains `'save'`, which runs `savepath` after the path change, and `'remove'`. `remove` calls `PsychLVGL('Shutdown')` when `mislocked('PsychLVGL')` is true (the MEX has no `Shutdown('all')`; `Shutdown` is the one subcommand that unlocks), checks `mislocked` again, prints what to do and returns without a path change if the MEX is still locked, then runs `clear('PsychLVGL')` (`clear('-f', ...)` on Octave, because a plain `clear` there leaves a loaded function resident and the `rmpath` that follows crashed Octave 10.1 on Linux in PsychNanoVG's CI, run 35887011083, while the `-f` form passed in PsychImGui's) and only then `rmpath` on `dist/<arch>`, `dist-sw/<arch>` and `m/`; a package that is not on the path is a no-op. `tests/test_setup.m` checks the two copies and the remove cycle and runs last in the no-GL group, as the one test that changes the path, only after the MEX is unloaded. 735 no-GL checks pass under MATLAB R2023a and Octave 10.1 on Windows, up from 722, and the GL suite still passes its 72. The demos no longer need the source tree and no longer call `addpath`. Their window and Gabor helpers are copies in `m/private` (`psychlvgl_demo_window`, `psychlvgl_demo_window_close`, `psychlvgl_gabor_std`, `psychlvgl_gabor_michelson`), and the tests keep the originals in `tests/gl`. The demo panel moved from `tests/xml/demo` to `examples/xml/gabor_panel`, with its own copy of `Ubuntu-Medium.ttf`, the Ubuntu Font Licence text `UFL.txt` from the LVGL tree, and a `NOTICE.txt`; `globals.xml` names the font as `fonts/Ubuntu-Medium.ttf`, and `test_xml_load` loads the panel from there. This replaces the part of D61 that says the demo needs the source tree. A demo now closes its panel and keeps its window, so both demos run any number of times in one session on one OpenGL context; `sca` closes the window, after which a panel needs a new session (D6). The screenshot mode of `PsychLVGLXMLDemo` still closes the window. `tools/CaptureReadmeScreenshot.m` keeps its `addpath`, as a source tree tool run in a fresh session. Every upload step in `ci.yml` ships `PsychLVGLSetup.m`, `examples` and `docs/images/psychlvgl-xml-demo.png` in addition to the earlier list. `RELEASING.md`, `third_party/PINS.md`, the `build.m` error and the generated help of `m/PsychLVGL.m` point at `DEV.md` where they pointed at the README for build matters, and the help shim error now says to run `PsychLVGLSetup`. | A user could not find how to install: the README opened with build, test and CI material, a release zip left `PsychLVGLSetup` inside `m/`, which is not on the path after an unzip, and there was no way to take the package off the path again. A root wrapper that called the `m/` copy by name would call itself whenever the package root is the current folder, because the current folder comes before the path; a second public setup name would give users two functions for one job. The demos called `addpath` at run time, which is the D35 crash class once the MEX is loaded, and read files that the zips did not carry. |
 | D64 | The build waits out the link second under Octave. `build.m` now ends with `age_mex_file`: under Octave it waits until the second of the MEX file's modification time has passed, at most one second, so no later load can fall inside it. MATLAB has no such check and skips the wait. Reproduced from a core dump in the `gnuoctave/octave:10.1.0` container (gdb hides the timing), and verified there by relinking and testing back to back. | Octave 10.1 rechecks a loaded function when its check time is not later than the last prompt or path stamp, in whole seconds, and `addpath` and `rmpath` set that stamp; it reloads the function when the file's modification time, with sub-second precision, is newer than the parse time truncated to whole seconds (`fcn-info.cc`, `out_of_date_check`). Reloading a MEX function recurses without end, because `remove_all_breakpoints_from_function` looks the function up again, and the process dies of stack exhaustion. So a MEX linked, put on the path and first loaded inside one wall-clock second crashes the first call after any path change. The lock was never the cause; it only made the earlier failures repeatable, because the locked MEX stayed loaded across the path change. CI runs 35887011083 (PsychNanoVG) and the one-session container run here showed the same frames as D35's crash. D35's rule about path changes stands as practice, but its explanation is superseded by this row. |
 | D65 | Input devices can be named and the wheel has a second source (sections 6.0 to 6.2). `PsychLVGLOpen` and `PsychLVGLInput('Start')` take `opts.KeyboardIndex` and `opts.MouseIndex`, the names PsychImGui uses too, each a vector of device indices; duplicates and an index in both lists raise `psychlvgl:Usage`. Each keyboard gets a queue and `Poll` merges their events by `Time`; each mouse gets a wheel source and `Poll` adds their clicks; the pointer follows `MouseIndex(1)`. On Linux a slave `MouseIndex(1)` gives the buttons, and the position comes from its master pointer, found by `locationID` = `interfaceID`, because `GetMouse` on a slave returns raw axes without the window offset (`SCREENGetMouseHelper.c`). Only `buttons(1)` is used, which is the left button on every path. `PsychLVGLInput('Devices')` lists the indices; `Poll` returns `kq` as a fourth output, which `PsychLVGLFrame` keeps in `ui.kq`. The wheel comes from a keyboard queue on the mouse: button 4 and 5 presses on Linux (`numValuators` 0, not the valuators, because the buttons are what X11 reports for each click), the third DirectInput axis on Windows (`numValuators` 3, flag 4, 120 units a click), and `GetMouseWheel` on macOS and as the fallback. Horizontal clicks are ignored. The empty default is unchanged. No C source changed: `Update` still takes one wheel value. The no-GL suite gains `test_input` with 111 checks, and the stubs gain `plv_stub_input`, `GetMouseIndices`, `GetKeyboardIndices`, `IsLinux`, `IsWin` and `IsOSX`; 846 checks pass under MATLAB R2023a and Octave 10.1 on Windows, and the GL suite (72) and `PsychLVGLDemo(3)` still pass under MATLAB with Psychtoolbox. PsychHID does not load on that machine (`LexActivator.dll` is missing), so no real queue ran there; the Linux and Windows queue paths and the master lookup are untested on hardware. | Lab machines have about four keyboards and three mice, and `GetMouseWheel` reads the first wheel mouse on Linux and does not work on Windows. |
-| D66 | A raw device log for reaction times (section 6.5). `PsychLVGLInput('Poll')` returns a fifth output and `PsychLVGLFrame` a third, `[ui, E, events]`, also kept in `ui.events`; the old outputs are unchanged. Each row is `[time device kind code pressed cooked]`, with the `KbEventGet` time for queued events and the poll time for polled ones. A named mouse queue now also selects buttons 1 to 3, for the log only; the pointer indev still uses the polled `GetMouse` state. The Windows wheel now completes clicks event by event instead of once per poll, so the log rows add up to the wheel value. `PsychLVGLEvents` gains `decodeRaw` and `filterRaw`. The widget event ring keeps the frame's update time (section 5.4), and the `Update` contract is unchanged. `test_input` grows to 149 checks; 884 checks pass under MATLAB R2023a and Octave 10.1 on Windows, and the GL suite (72) and `PsychLVGLDemo(3)` still pass under MATLAB with Psychtoolbox. The DirectInput button order left, right, middle comes from Microsoft's documentation, not from the PTB source, and was not seen on hardware here. | The event ring stamps widget events with the frame time and `Poll` dropped the `KbEventGet` time, so a script could not compute a reaction time from the device event. |
+| D66 | A raw device log for reaction times (section 6.5). `PsychLVGLInput('Poll')` returns a fifth output and `PsychLVGLFrame` a third, `[ui, E, events]`, also kept in `ui.events`; the old outputs are unchanged. `events` is an Nx1 struct array with the fields `time`, `device`, `kind` (`'key'`, `'button'`, `'wheel'`), `code`, `name`, `pressed` and `cooked`, sorted by time, and a 0x1 struct array with those fields when there is none. It was first an Nx6 matrix; named fields replaced it, so nobody has to remember the column order. `time` is the `KbEventGet` time for queued events and the poll time for polled ones. A named mouse queue now also selects buttons 1 to 3, for the log only; the pointer indev still uses the polled `GetMouse` state. The Windows wheel now completes clicks event by event instead of once per poll, so the wheel events add up to the wheel value. `PsychLVGLEvents` gains `filterRaw` for the struct array; the short-lived `decodeRaw` is gone. The widget event matrix `E` keeps its form and the frame's update time (section 5.4), and the `Update` contract is unchanged. `test_input` grows to 160 checks; 895 checks pass under MATLAB R2023a and Octave 10.1 on Windows and under Octave 6.4 on Linux (WSL, a fresh `build test-sw` of a copy of the tree), and the GL suite (72) and `PsychLVGLDemo(3)` still pass under MATLAB with Psychtoolbox. The DirectInput button order left, right, middle comes from Microsoft's documentation, not from the PTB source, and was not seen on hardware here. | The event ring stamps widget events with the frame time and `Poll` dropped the `KbEventGet` time, so a script could not compute a reaction time from the device event. |

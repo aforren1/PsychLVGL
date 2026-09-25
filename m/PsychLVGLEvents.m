@@ -8,35 +8,30 @@ function out = PsychLVGLEvents(cmd, E, varargin)
 %       The rows of E whose target is h and whose code is that event. Pass []
 %       for either to leave it unconstrained.
 %
-%   S = PsychLVGLEvents('decodeRaw', events)
-%       Struct array with time, device, kind, kindName, code, name, pressed,
-%       cooked, from the raw device log of PsychLVGLFrame or
-%       PsychLVGLInput('Poll'). kindName is 'key', 'button' or 'wheel'.
-%       name is the KbName of a key (when KbName is on the path), 'left',
-%       'middle' or 'right' for a button, and 'vertical' or 'horizontal' for
-%       the wheel.
-%
 %   R = PsychLVGLEvents('filterRaw', events, kind, code)
-%       The rows of the raw log with that kind (1, 2, 3 or 'key', 'button',
-%       'wheel') and code. Pass [] for either to leave it unconstrained. A
-%       char code is a KbName for keys, 'left', 'middle' or 'right' for
-%       buttons, and 'vertical' or 'horizontal' for the wheel.
+%       The elements of the raw device log (PsychLVGLFrame, third output)
+%       with that kind ('key', 'button' or 'wheel') and code. code is a
+%       number, a vector, a KbName for keys, 'left', 'middle' or 'right' for
+%       buttons, or 'vertical' or 'horizontal' for the wheel. Pass [] for
+%       either to leave it unconstrained. R is Mx1, 0x1 when nothing matches.
 %
-%   The two logs differ in time: the time of a widget event is the time of
-%   the Update that produced it, the same for every event of a frame; the
-%   time of a raw row is when the device reported it. Use the raw log for
+%   The two logs differ in form and in time. The widget event matrix is
+%   filled by the MEX into one block of doubles, one row per event, and its
+%   time is the time of the Update that produced the event, the same for
+%   every event of a frame. The raw device log is built in MATLAB from the
+%   Psychtoolbox queues, so it is a struct array with named fields, and its
+%   time is when the device reported the event. Use the raw log for
 %   reaction times.
 %
-%   The matrix is the primary form because one mxCreateDoubleMatrix is far
-%   cheaper per frame than a struct array. Decode when readability matters.
+%   The widget event matrix is the primary form because one
+%   mxCreateDoubleMatrix is far cheaper per frame than a struct array.
+%   Decode when readability matters.
 
     switch lower(cmd)
         case 'decode'
             out = do_decode(E);
         case 'filter'
             out = do_filter(E, varargin{:});
-        case 'decoderaw'
-            out = do_decode_raw(E);
         case 'filterraw'
             out = do_filter_raw(E, varargin{:});
         otherwise
@@ -83,88 +78,48 @@ function R = do_filter(E, h, name)
     R = E(keep, :);
 end
 
-function S = do_decode_raw(ev)
-    if isempty(ev); ev = zeros(0, 6); end
-    if size(ev, 2) ~= 6
-        error('psychlvgl:Usage', 'the raw event log must have 6 columns');
-    end
-    n = size(ev, 1);
-    S = repmat(struct('time', 0, 'device', 0, 'kind', 0, 'kindName', '', ...
-                      'code', 0, 'name', '', 'pressed', 0, 'cooked', 0), n, 1);
-    kinds = {'key', 'button', 'wheel'};
-    for k = 1:n
-        S(k).time = ev(k, 1);
-        S(k).device = ev(k, 2);
-        S(k).kind = ev(k, 3);
-        if any(ev(k, 3) == 1:3); S(k).kindName = kinds{ev(k, 3)}; end
-        S(k).code = ev(k, 4);
-        S(k).name = plv_raw_name(ev(k, 3), ev(k, 4));
-        S(k).pressed = ev(k, 5);
-        S(k).cooked = ev(k, 6);
-    end
-    if n == 0
-        S = S([]);
-    end
-end
-
 function R = do_filter_raw(ev, kind, code)
     if nargin < 2; kind = []; end
     if nargin < 3; code = []; end
-    if isempty(ev); ev = zeros(0, 6); end
-    keep = true(size(ev, 1), 1);
-    if ischar(kind)
-        kind = find(strcmpi(kind, {'key', 'button', 'wheel'}));
-        if isempty(kind)
-            error('psychlvgl:Usage', 'kind must be 1, 2, 3, ''key'', ''button'' or ''wheel''');
-        end
+    if isempty(ev)
+        R = plv_raw_events([]);
+        return;
     end
+    if ~isstruct(ev) || ~isfield(ev, 'kind') || ~isfield(ev, 'code')
+        error('psychlvgl:Usage', 'filterRaw wants the raw event struct array');
+    end
+    ev = ev(:);
+    keep = true(numel(ev), 1);
     if ~isempty(kind)
-        keep = keep & (ev(:, 3) == kind);
+        if ~ischar(kind) || ~any(strcmp(kind, {'key', 'button', 'wheel'}))
+            error('psychlvgl:Usage', 'kind must be ''key'', ''button'' or ''wheel''');
+        end
+        keep = keep & strcmp({ev.kind}', kind);
     end
     if ~isempty(code)
         if ischar(code)
             code = plv_raw_code(kind, code);
         end
-        keep = keep & ismember(ev(:, 4), code);
+        keep = keep & ismember([ev.code]', code(:));
     end
-    R = ev(keep, :);
-end
-
-function name = plv_raw_name(kind, code)
-    name = '';
-    switch kind
-        case 1
-            if exist('KbName', 'file')
-                try
-                    name = KbName(code);
-                    if iscell(name); name = name{1}; end
-                    if ~ischar(name); name = ''; end
-                catch
-                    name = '';
-                end
-            end
-        case 2
-            names = {'left', 'middle', 'right'};
-            if any(code == 1:3); name = names{code}; end
-        case 3
-            names = {'vertical', 'horizontal'};
-            if any(code == 1:2); name = names{code}; end
-    end
+    R = ev(keep);
 end
 
 function code = plv_raw_code(kind, name)
     switch kind
-        case 2
+        case 'button'
             code = find(strcmpi(name, {'left', 'middle', 'right'}));
-        case 3
+        case 'wheel'
             code = find(strcmpi(name, {'vertical', 'horizontal'}));
-        otherwise
-            % A key name needs KbName, which maps names the way the
-            % keyboard queue reports them on this platform.
-            if isempty(kind) || kind ~= 1 || ~exist('KbName', 'file')
-                error('psychlvgl:Usage', 'a key name needs kind 1 and KbName on the path');
+        case 'key'
+            % KbName maps names the way the keyboard queue reports them on
+            % this platform.
+            if ~exist('KbName', 'file')
+                error('psychlvgl:Usage', 'a key name needs KbName on the path');
             end
             code = KbName(name);
+        otherwise
+            error('psychlvgl:Usage', 'a code name needs a kind');
     end
     if isempty(code)
         error('psychlvgl:Usage', 'unknown code name "%s"', name);

@@ -8,11 +8,11 @@ function [ui, E, events] = PsychLVGLFrame(ui)
 %   E    The event matrix, Nx5, oldest first. PsychLVGLEvents('decode', E)
 %        turns it into a struct array. Its time column is the time of this
 %        frame's Update, the same for every widget event of the frame.
-%   events  The raw device events of this frame, Nx6, in time order:
-%        [time device kind code pressed cooked], with the time Psychtoolbox
-%        recorded for the device event. Use it for reaction times. ui.events
-%        holds the same matrix. See help PsychLVGLInput for the columns and
-%        PsychLVGLEvents('decodeRaw', events) for a struct array.
+%   events  The raw device events of this frame, an Nx1 struct array in
+%        time order (0x1 when there is none) with the fields time, device,
+%        kind, code, name, pressed and cooked. time is when Psychtoolbox
+%        recorded the device event; use it for reaction times. ui.events
+%        holds the same array. See help PsychLVGLInput for the fields.
 %
 %   One call does everything SPEC section 4.3 shows per frame: it polls the
 %   mouse, the wheel and the keyboard in panel coordinates, on the devices
